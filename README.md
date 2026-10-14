@@ -35,13 +35,36 @@ Passwords are stored with [`keyring`](https://pypi.org/project/keyring/), which 
 | Linux | Secret Service (GNOME Keyring or KWallet) | Tk dialog (needs `tkinter` and a display) |
 
 - **Linux** needs a desktop session with D-Bus and an unlocked keyring. Headless servers, containers and
-  bare WSL usually have none, so saving a login fails with a message saying so. There is deliberately no
-  plaintext fallback.
+  bare WSL usually have none, so saving a login fails with a message saying so. The tool never
+  falls back to a file on its own; headless storage is an explicit opt-in below.
+- No keychain at all (headless server)? See [Headless Linux](#headless-linux).
 - Where there is no graphical dialog, use `uv run mcp-workday-login <url> <email>` in a terminal.
 - Config and cache files live in `~/.config/work-mcps` and `~/.cache/work-mcps` (XDG variables are
   honoured), or under `%APPDATA%` and `%LOCALAPPDATA%` on Windows.
 - CI runs lint, type checks and tests on all three systems. The author has so far only tried it by
   hand on macOS, so please open an issue if something misbehaves on Windows or Linux.
+
+## Headless Linux
+
+Servers and containers usually have no keychain, so saving a login fails. `work-mcp setup` notices and
+offers to fix it; you can also run it yourself:
+
+```sh
+uv run work-mcp headless                    # asks: encrypted file or plain-text file
+uv run work-mcp headless --mode encrypted
+uv run work-mcp headless --mode plaintext   # explicit opt-in, asks to confirm
+uv run work-mcp headless --off              # back to the OS keychain
+```
+
+| Mode | Where | Protection |
+|---|---|---|
+| Encrypted file | `~/.config/work-mcps/credentials.enc` | Argon2 + AES. A random key is generated into `keyring.key` (mode 600) on the same machine, so this protects copies and backups of the data file, not someone who can read both files. |
+| Plain-text file | `~/.config/work-mcps/credentials.json` | None. Mode 600 only: anyone who can read the file or a backup of it can read your passwords. |
+
+The choice is saved in `keyring.json` next to them, so no environment variables are needed, including
+for AI clients that don't pass your environment to servers. Logins saved in another store aren't moved;
+re-add or re-import them. These modes exist only on Linux and are never picked automatically.
+(`WORK_MCP_KEYRING=file|plaintext` overrides the saved choice.)
 
 ## Supported AI clients
 

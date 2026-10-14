@@ -37,3 +37,34 @@ def test_unix_dirs_follow_xdg(monkeypatch, tmp_path):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     assert credentials.default_config_dir() == tmp_path / "cfg" / "work-mcps"
     assert snapshot.default_cache_dir() == tmp_path / "cache" / "work-mcps"
+
+
+def test_plaintext_keyring_roundtrip_and_mode(tmp_path, monkeypatch):
+    import os
+    import stat
+
+    import keyring
+
+    monkeypatch.setattr("sys.platform", "linux")
+    monkeypatch.setattr(credentials, "_file_keyring_ready", False)
+    monkeypatch.setenv("WORK_MCP_KEYRING", "plaintext")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    store = CredentialStore("workday", tmp_path / "idx")
+    store.save("h.example.com", Credential(username="u", password="secret-pw"))
+    assert store.get("h.example.com").password == "secret-pw"  # type: ignore[union-attr]
+    data_file = tmp_path / "work-mcps" / "credentials.json"
+    assert "secret-pw" in data_file.read_text(encoding="utf-8")
+    if os.name == "posix":
+        assert stat.S_IMODE(data_file.stat().st_mode) == 0o600
+    assert store.delete("h.example.com")
+    assert store.get("h.example.com") is None
+    keyring.set_keyring(keyring.get_keyring())  # leave conftest's backend replaced by a fresh one
+
+
+def test_plaintext_keyring_refused_off_linux(monkeypatch):
+
+    monkeypatch.setattr("sys.platform", "darwin")
+    monkeypatch.setattr(credentials, "_file_keyring_ready", False)
+    monkeypatch.setenv("WORK_MCP_KEYRING", "plaintext")
+    with pytest.raises(CredentialStoreError, match="only available on Linux"):
+        CredentialStore("workday").get("x")

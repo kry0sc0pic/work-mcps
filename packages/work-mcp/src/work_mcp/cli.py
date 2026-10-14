@@ -1,6 +1,9 @@
 """`work-mcp`: set up the candidate-side ATS MCP servers."""
 
 import getpass
+import json
+import os
+import secrets
 import shutil
 import sys
 import tomllib
@@ -10,7 +13,7 @@ from typing import Annotated
 
 import questionary
 import typer
-from ats_core import Credential, CredentialStoreError
+from ats_core import Credential, CredentialStore, CredentialStoreError
 from rich.console import Console
 from rich.table import Table
 
@@ -152,6 +155,62 @@ def clean_path(raw: str) -> Path:
     return Path(raw).expanduser()
 
 
+def keychain_works() -> bool:
+    try:
+        CredentialStore("workday").get("__probe__")
+    except CredentialStoreError:
+        return False
+    return True
+
+
+def headless_setup(mode: str | None, *, yes: bool) -> bool:
+    """Configure a file-based keyring for machines with no OS keychain (Linux servers). Opt-in only."""
+    from ats_core.credentials import default_config_dir, keyring_settings_path
+
+    if mode is None:
+        console.print(
+            "  1. Encrypted file (recommended): logins encrypted with a random key kept beside them"
+        )
+        console.print("  2. Plain-text file: readable JSON, owner-only permissions")
+        mode = {"1": "encrypted", "2": "plaintext"}.get(typer.prompt("Choice", default="1"), "")
+    if mode not in ("encrypted", "plaintext"):
+        raise typer.BadParameter("mode must be 'encrypted' or 'plaintext'")
+    if not sys.platform.startswith("linux"):
+        console.print(
+            "[red]Headless storage is only offered on Linux; macOS and Windows have a real keychain.[/red]"
+        )
+        return False
+    config = default_config_dir()
+    config.mkdir(parents=True, exist_ok=True)
+    if mode == "plaintext":
+        console.print(
+            "[yellow]Logins will be stored unencrypted in "
+            f"{config / 'credentials.json'} (mode 600). Anyone who can read that file, or a backup of it, "
+            "can read your passwords.[/yellow]"
+        )
+        if not (yes or typer.confirm("Use plain-text storage?", default=False)):
+            return False
+        settings = {"backend": "plaintext"}
+    else:
+        key = config / "keyring.key"
+        if not key.exists():
+            fd = os.open(key, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(secrets.token_urlsafe(32))
+        settings = {"backend": "file", "password_file": str(key)}
+        console.print(
+            f"Logins go to {config / 'credentials.enc'}, encrypted with the random key in {key}. "
+            "The key lives on this machine, so this protects copies and backups of the data file, "
+            "not someone who can read both files."
+        )
+    keyring_settings_path().write_text(json.dumps(settings, indent=2), encoding="utf-8")
+    console.print(
+        "[green]Headless storage is on.[/green] Logins saved in your OS keychain earlier are not moved: "
+        "re-add or re-import them."
+    )
+    return True
+
+
 def choose_clients(ids: list[str] | None, *, yes: bool) -> list[Client]:
     """Which AI clients to add the servers to: those named, else a picker with detected ones ticked."""
     known = all_clients()
@@ -232,6 +291,10 @@ def setup(
 ) -> None:
     """Interactive wizard: choose platforms, add logins, register the servers with your AI clients."""
     console.rule("[bold]work-mcp setup")
+    if sys.platform.startswith("linux") and not keychain_works():
+        console.print("[yellow]No usable system keychain was found on this machine.[/yellow]")
+        if yes or typer.confirm("Set up headless storage instead?", default=True):
+            headless_setup(None if not yes else "encrypted", yes=yes)
     platforms = list(PLATFORMS.values())
     if len(platforms) > 1:
         for i, p in enumerate(platforms, 1):
@@ -288,6 +351,23 @@ def import_csv(
 def accounts() -> None:
     """List saved accounts (never shows passwords)."""
     show_accounts(list(PLATFORMS.values()))
+
+
+@app.command()
+def headless(
+    mode: Annotated[str | None, typer.Option("--mode", help="encrypted or plaintext")] = None,
+    off: Annotated[bool, typer.Option("--off", help="Go back to the OS keychain.")] = False,
+    yes: Annotated[bool, typer.Option("--yes")] = False,
+) -> None:
+    """Linux without a desktop keychain: store logins in an encrypted (or plain-text) file instead."""
+    from ats_core.credentials import keyring_settings_path
+
+    if off:
+        keyring_settings_path().unlink(missing_ok=True)
+        console.print("Back to the OS keychain. Logins saved in the file store stay where they are.")
+        return
+    if not headless_setup(mode, yes=yes):
+        raise typer.Exit(1)
 
 
 @app.command("register")

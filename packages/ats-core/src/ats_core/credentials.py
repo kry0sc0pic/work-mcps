@@ -29,16 +29,58 @@ def _no_backend_advice() -> str:
     if sys.platform.startswith("linux"):
         return (
             "On Linux this needs a Secret Service provider (GNOME Keyring or KWallet) running in a desktop "
-            "session with D-Bus. Headless servers, containers and bare WSL usually have none; install and "
-            "unlock one, or run from a desktop session."
+            "session with D-Bus. Headless servers, containers and bare WSL usually have none; on those, set "
+            "run `work-mcp headless` to use an encrypted file (or an explicit plaintext file) instead."
         )
     if sys.platform == "win32":
         return "Windows Credential Manager should be available; check that the process runs as a normal user."
     return "Check that the macOS Keychain is unlocked and that this process may access it."
 
 
+_file_keyring_ready = False
+
+
+def keyring_settings_path() -> Path:
+    return default_config_dir() / "keyring.json"
+
+
+def _keyring_choice() -> dict[str, str]:
+    """The explicit headless choice: env var wins, else what `work-mcp headless` saved."""
+    if mode := os.environ.get("WORK_MCP_KEYRING"):
+        return {"backend": mode}
+    try:
+        return json.loads(keyring_settings_path().read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _use_file_keyring_if_requested() -> None:
+    """Swap the OS keychain for a file keyring, only when the user opted in (see filekeyring.py)."""
+    global _file_keyring_ready
+    choice = _keyring_choice()
+    mode = choice.get("backend")
+    if _file_keyring_ready or mode not in ("file", "plaintext"):
+        return
+    from ats_core.filekeyring import FileKeyringError, PlaintextKeyring, make_encrypted_keyring
+
+    config = default_config_dir()
+    try:
+        if mode == "plaintext":
+            if not sys.platform.startswith("linux"):
+                raise CredentialStoreError("The plaintext keyring is only available on Linux.")
+            kr = PlaintextKeyring(config / "credentials.json")
+        else:
+            kr = make_encrypted_keyring(config / "credentials.enc", choice.get("password_file"))
+    except FileKeyringError as e:
+        raise CredentialStoreError(str(e)) from e
+    config.mkdir(parents=True, exist_ok=True)
+    keyring.set_keyring(kr)
+    _file_keyring_ready = True
+
+
 @contextmanager
 def _keychain() -> Iterator[None]:
+    _use_file_keyring_if_requested()
     try:
         yield
     except NoKeyringError as e:

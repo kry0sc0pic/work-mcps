@@ -283,3 +283,31 @@ def test_missing_file_is_a_clean_error(tmp_path):
 def test_clean_path(monkeypatch, platform, raw, expected):
     monkeypatch.setattr(sys, "platform", platform)
     assert str(cli.clean_path(raw)).replace("\\", "/") == expected.replace("\\", "/")
+
+
+def test_hermes_gets_dbus_env_on_linux(fake_home, monkeypatch):
+    monkeypatch.setattr("work_mcp.clients.sys.platform", "linux")
+    monkeypatch.setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus")
+    all_clients()["hermes"].install(ServerSpec("workday", "uv", []))
+    text = (fake_home / ".hermes" / "config.yaml").read_text(encoding="utf-8")
+    assert "DBUS_SESSION_BUS_ADDRESS" in text and "/run/user/1000/bus" in text
+
+
+def test_headless_command_plaintext_and_encrypted(fake_home, monkeypatch):
+    from ats_core.credentials import keyring_settings_path
+
+    monkeypatch.setattr(cli.sys, "platform", "linux")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(fake_home / "cfg"))
+    r = runner.invoke(cli.app, ["headless", "--mode", "plaintext", "--yes"])
+    assert r.exit_code == 0, r.output
+    assert json.loads(keyring_settings_path().read_text(encoding="utf-8")) == {"backend": "plaintext"}
+    r = runner.invoke(cli.app, ["headless", "--mode", "encrypted"])
+    cfg = json.loads(keyring_settings_path().read_text(encoding="utf-8"))
+    assert cfg["backend"] == "file" and (fake_home / "cfg" / "work-mcps" / "keyring.key").exists()
+    assert runner.invoke(cli.app, ["headless", "--off"]).exit_code == 0
+    assert not keyring_settings_path().exists()
+
+
+def test_headless_refused_off_linux(monkeypatch):
+    monkeypatch.setattr(cli.sys, "platform", "darwin")
+    assert runner.invoke(cli.app, ["headless", "--mode", "plaintext", "--yes"]).exit_code == 1

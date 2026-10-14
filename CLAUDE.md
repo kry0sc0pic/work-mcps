@@ -79,7 +79,10 @@ depend on that lookup. Piped stdin (tests, scripts) skips the TUI and asks a y/n
 ## Cross-platform
 Must work on macOS, Windows and Linux (CI runs all three; only macOS has been hand-tested).
 - Keychain access goes through `CredentialStore`, which turns `keyring` errors into `CredentialStoreError`
-  (e.g. no Secret Service on headless Linux). Never add a plaintext-file fallback.
+  (e.g. no Secret Service on headless Linux). No *automatic* fallback to a file: the OS keychain is the default. Headless Linux can opt in
+  explicitly with `work-mcp headless` (an Argon2/AES encrypted file, or, only if the user asks for it,
+  a mode-600 plain-text file); the choice is saved in `keyring.json` (`ats_core/filekeyring.py`). Never
+  select either without that explicit choice, and never on macOS/Windows.
 - Native dialog (`prompt.py`): `osascript` on macOS, a Tk subprocess elsewhere; both take values as argv.
 - Paths: XDG on macOS/Linux, `%APPDATA%` / `%LOCALAPPDATA%` on Windows. Pass `encoding="utf-8"` to every
   text file read/write (Windows defaults to cp1252) and don't assume `/` separators or `chmod` effects.

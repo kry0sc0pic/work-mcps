@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -102,6 +103,17 @@ def _install_json(path: Path, spec: ServerSpec) -> Outcome:
     return Outcome("added")
 
 
+def _keyring_env() -> dict[str, str]:
+    """Hermes passes MCP servers only the env it is configured with, so a Linux keyring on a
+    session bus (typical on headless boxes) is invisible unless the bus address is set explicitly."""
+    if not sys.platform.startswith("linux"):
+        return {}
+    addr = os.environ.get("DBUS_SESSION_BUS_ADDRESS")
+    if not addr and (bus := Path(f"/run/user/{os.getuid()}/bus")).exists():
+        addr = f"unix:path={bus}"
+    return {"DBUS_SESSION_BUS_ADDRESS": addr} if addr else {}
+
+
 def _install_yaml(path: Path, spec: ServerSpec) -> Outcome:
     yaml = YAML()  # round-trip mode keeps the user's comments and ordering
     data = yaml.load(path.read_text(encoding="utf-8")) if path.exists() else None
@@ -113,7 +125,10 @@ def _install_yaml(path: Path, spec: ServerSpec) -> Outcome:
         servers = data["mcp_servers"] = {}
     if spec.name in servers:
         return Outcome("exists")
-    servers[spec.name] = {"command": spec.command, "args": spec.args}
+    entry: dict = {"command": spec.command, "args": spec.args}
+    if env := _keyring_env():
+        entry["env"] = env
+    servers[spec.name] = entry
     tmp = path.with_suffix(path.suffix + ".tmp")
     path.parent.mkdir(parents=True, exist_ok=True)
     with tmp.open("w", encoding="utf-8") as f:
