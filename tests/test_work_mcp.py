@@ -1,0 +1,133 @@
+import pytest
+from typer.testing import CliRunner
+from work_mcp import cli
+from work_mcp.importer import CsvFormatError, build_plan
+from work_mcp.platforms import PLATFORMS
+
+runner = CliRunner()
+WD = PLATFORMS["workday"]
+
+CHROME = """name,url,username,password,note
+hooli,https://hooli.wd5.myworkdayjobs.com/en-US/HooliExternalCareerSite?source=li,me@x.com,pw1,
+github,https://github.com/login,me@x.com,ghpw,
+initech,initech.wd3.myworkdayjobs.com/en-US/jobs-and-careers,me@x.com,pw2,
+hostonly,https://acme.wd1.myworkdayjobs.com,me@x.com,pw3,
+nopass,https://beta.wd1.myworkdayjobs.com/Careers,me@x.com,,
+dup,https://hooli.wd5.myworkdayjobs.com/en-US/HooliExternalCareerSite,me@x.com,pw1,
+conflict,https://hooli.wd5.myworkdayjobs.com/en-US/HooliExternalCareerSite,other@x.com,pw9,
+"""
+APPLE = """Title,URL,Username,Password,Notes,OTPAuth
+Umbrella,https://umbrella.wd5.myworkdayjobs.com/en-US/REC_Umbrella_Ext_Gateway/login,me@x.com,upw,,
+"""
+BITWARDEN = """folder,type,name,login_uri,login_username,login_password
+,login,x,https://acme.wd3.myworkdayjobs.com/Careers,me@x.com,bwpw
+"""
+
+
+@pytest.fixture(autouse=True)
+def dirs(tmp_path, monkeypatch):
+    monkeypatch.setenv("WORKDAY_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("WORKDAY_CACHE_DIR", str(tmp_path / "cache"))
+
+
+def stored_password(key):
+    cred = WD.store().get(key)
+    assert cred
+    return cred.password
+
+
+def write(tmp_path, text, name="export.csv"):
+    p = tmp_path / name
+    p.write_text(text)
+    return p
+
+
+def test_plan_classifies_rows(tmp_path):
+    plan = build_plan(write(tmp_path, CHROME))
+    by = {(i.ref.key if i.ref else i.source_url): i.status for i in plan.items}
+    assert by["hooli.wd5.myworkdayjobs.com"] in ("new", "conflict")
+    statuses = sorted(i.status for i in plan.items)
+    assert statuses == ["conflict", "new", "new", "skipped", "skipped"]  # dup row collapsed
+    assert plan.rows_total == 7 and plan.rows_ignored == 1  # github
+    skipped = {i.source_url: i.detail for i in plan.items if i.status == "skipped"}
+    assert "no username or password" in skipped["https://beta.wd1.myworkdayjobs.com/Careers"]
+    assert "No site name" in skipped["https://acme.wd1.myworkdayjobs.com"]
+
+
+@pytest.mark.parametrize(
+    "text, host", [(APPLE, "umbrella.wd5.myworkdayjobs.com"), (BITWARDEN, "acme.wd3.myworkdayjobs.com")]
+)
+def test_other_export_formats(tmp_path, text, host):
+    (item,) = build_plan(write(tmp_path, text)).items
+    assert item.status == "new" and item.ref and item.ref.key == host
+
+
+def test_company_hint_from_title_column(tmp_path):
+    plan = build_plan(write(tmp_path, CHROME))
+    companies = {i.ref.key: i.ref.meta["company"] for i in plan.items if i.ref and i.status == "new"}
+    assert companies["hooli.wd5.myworkdayjobs.com"] == "hooli"  # from the "name" column
+    assert companies["initech.wd3.myworkdayjobs.com"] == "initech"
+    (item,) = build_plan(write(tmp_path, BITWARDEN, "bw.csv")).items
+    assert item.ref and item.ref.meta["company"] == "x"  # Bitwarden name column
+    assert item.ref.meta["source"] == "csv-import"
+
+
+def test_unknown_csv_layout(tmp_path):
+    with pytest.raises(CsvFormatError):
+        build_plan(write(tmp_path, "a,b\n1,2\n"))
+
+
+def test_import_cli_dry_run_then_apply(tmp_path):
+    f = write(tmp_path, APPLE)
+    r = runner.invoke(cli.app, ["import", str(f), "--dry-run"])
+    assert r.exit_code == 0 and "upw" not in r.output and "new" in r.output
+    assert WD.store().list() == {}
+    assert f.exists()
+
+    r = runner.invoke(cli.app, ["import", str(f), "--yes", "--delete"])
+    assert r.exit_code == 0 and "upw" not in r.output
+    assert WD.store().list()["umbrella.wd5.myworkdayjobs.com"]["site"] == "REC_Umbrella_Ext_Gateway"
+    assert stored_password("umbrella.wd5.myworkdayjobs.com") == "upw"
+    assert not f.exists()
+
+
+def test_reimport_is_unchanged_then_update(tmp_path):
+    f = write(tmp_path, APPLE)
+    runner.invoke(cli.app, ["import", str(f), "--yes", "--keep"])
+    (item,) = build_plan(f).items
+    assert item.status == "unchanged"
+    f.write_text(APPLE.replace("upw", "newpw"))
+    (item,) = build_plan(f).items
+    assert item.status == "update"
+
+
+def test_setup_wizard_manual_add(monkeypatch):
+    monkeypatch.setattr(cli, "read_password", lambda prompt: "typed-pw")
+    monkeypatch.setattr(cli.shutil, "which", lambda _: None)
+    answers = "2\nhttps://hooli.wd5.myworkdayjobs.com/en-US/HooliExternalCareerSite\nme@x.com\n\n"
+    r = runner.invoke(cli.app, ["setup"], input=answers)
+    assert r.exit_code == 0, r.output
+    assert "typed-pw" not in r.output
+    assert stored_password("hooli.wd5.myworkdayjobs.com") == "typed-pw"
+    assert "claude mcp add --scope user workday" in r.output  # claude CLI missing -> prints command
+
+
+def test_setup_wizard_csv_import(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli.shutil, "which", lambda _: None)
+    f = write(tmp_path, APPLE)
+    r = runner.invoke(cli.app, ["setup"], input=f"1\n{f}\ny\ny\n")
+    assert r.exit_code == 0, r.output
+    assert "upw" not in r.output
+    assert "umbrella.wd5.myworkdayjobs.com" in WD.store().list()
+    assert not f.exists()
+
+
+def test_register_command_shape():
+    cmd = cli.mcp_add_command(WD)
+    assert cmd[:6] == ["claude", "mcp", "add", "--scope", "user", "workday"]
+    assert cmd[-1] == "mcp-workday" and "--project" in cmd
+
+
+def test_bad_platform():
+    r = runner.invoke(cli.app, ["import", "x.csv", "-p", "nope"])
+    assert r.exit_code != 0

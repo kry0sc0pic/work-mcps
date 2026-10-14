@@ -1,0 +1,35 @@
+[project]
+name = "work-mcps"
+version = "0.1.0"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "packages/ats-core",
+    "packages/mcp-greenhouse",
+    "packages/mcp-workday",
+    "packages/work-mcp",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.17.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pyright]
+include = ["packages", "tests"]
