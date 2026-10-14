@@ -13,6 +13,7 @@ dependencies = [
     "mcp-workday",
     "questionary>=2.1.1",
     "rich>=15.0.0",
+    "ruamel-yaml>=0.18",
     "typer>=0.27.3",
 ]
 

@@ -5,7 +5,7 @@ employer/recruiter tooling). Python 3.12, uv workspace.
 
 ## Commands
 - `uv sync --all-packages`: a bare `uv sync` installs only the root and skips the server packages.
-- Setup wizard: `uv run work-mcp setup` (also `import`, `accounts`, `register`). Needs a TTY.
+- Setup wizard: `uv run work-mcp setup` (also `import`, `accounts`, `register [-c client]`). Needs a TTY.
 - `uv run pytest`, `uv run ruff check .`, `uv run ruff format .`, `uv run pyright`: all must pass.
 - Run a server: `uv run mcp-workday` (stdio).
 - Save credentials: `uv run mcp-workday-login <url> <email>`. Needs a real TTY, so it fails under
@@ -20,6 +20,9 @@ employer/recruiter tooling). Python 3.12, uv workspace.
   (`Platform` protocol; add a platform here to make it appear in `setup` and `import`), `importer.py`
   parses password-manager CSVs into a dry-run `ImportPlan` before anything is saved, `cli.py` has the
   wizard and commands.
+  `clients.py` registers servers with AI clients: CLIs (`claude`/`codex`/`grok` `mcp add NAME -- CMD`,
+  `openclaw mcp set NAME JSON`), a JSON edit (Cursor `mcpServers`) and a ruamel YAML edit (Hermes
+  `mcp_servers`). Never overwrite an existing entry; write files atomically.
 - `packages/mcp-greenhouse`: stub, not wired to the credential store.
 - `tools/capture.py`: platform-agnostic Playwright traffic recorder for reverse-engineering a new
   site (`uv run python tools/capture.py <login-url>`). Output goes to gitignored `.captures/`.
@@ -100,8 +103,9 @@ keychain. If a request would need a write call to an employer, say no and point 
 
 - CSV exports contain every password the user owns. The importer reads only matching rows, never
   prints passwords, and offers to delete the file. Keep it that way.
-- `work-mcp register` runs `claude mcp add --scope user …`, which edits the user's Claude config.
-  Don't run it for real without asking; tests stub `shutil.which`.
+- `work-mcp register` edits the user's AI-client configs (Claude, Codex, Grok, OpenClaw via their CLIs;
+  Cursor and Hermes files directly). Don't run it for real without asking. Tests use a fake `HOME`
+  (conftest `fake_home`) and stub `shutil.which`.
 
 ## License
 GPL-3.0-or-later (`LICENSE`).

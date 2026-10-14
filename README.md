@@ -17,8 +17,8 @@ The wizard walks through:
 1. **Platforms:** which ATS platforms to connect (currently Workday).
 2. **Logins:** import them from a password-manager CSV (Apple Passwords, Chrome, 1Password,
    Bitwarden), type them in one at a time, or skip.
-3. **Registration:** adds each MCP server to Claude Code (`claude mcp add --scope user …`). If the
-   `claude` CLI isn't installed, it prints the commands instead.
+3. **Registration:** pick which AI clients get the MCP servers (detected ones are pre-ticked; see
+   [Supported AI clients](#supported-ai-clients)). Anything it can't do itself, it prints as a command to run.
 
 Passwords go to your system keychain. Only the host, site name and username are written to
 `~/.config/work-mcps/workday-accounts.json`. Run the wizard in a normal terminal, since the hidden
@@ -42,6 +42,24 @@ Passwords are stored with [`keyring`](https://pypi.org/project/keyring/), which 
   honoured), or under `%APPDATA%` and `%LOCALAPPDATA%` on Windows.
 - CI runs lint, type checks and tests on all three systems. The author has so far only tried it by
   hand on macOS, so please open an issue if something misbehaves on Windows or Linux.
+
+## Supported AI clients
+
+The wizard (and `work-mcp register`) adds each server to the clients you pick. Setup is read from each
+client's docs; only Claude Code has been run end to end so far, so please report problems.
+
+| Client | How it's registered |
+|---|---|
+| Claude Code | `claude mcp add --scope user` |
+| Codex | `codex mcp add` (writes `~/.codex/config.toml`) |
+| Grok Build | `grok mcp add` (writes `~/.grok/config.toml`) |
+| OpenClaw | `openclaw mcp set` |
+| Cursor | edits `~/.cursor/mcp.json` (`mcpServers`) |
+| Hermes Agent | edits `~/.hermes/config.yaml` (`mcp_servers`); comments are kept |
+
+Existing entries named `workday` are never overwritten, and other servers in those files are left alone.
+Restart the client (Hermes: `/reload-mcp`) so it picks up the new tools. Missing the CLI or file? The
+wizard prints the command or snippet to use by hand.
 
 ## Importing passwords
 
@@ -78,7 +96,8 @@ Rows are reported as `new`, `update`, `unchanged`, `conflict` (two different log
 
 ```sh
 uv run work-mcp accounts                 # saved accounts (never passwords)
-uv run work-mcp register                 # (re)register the servers with Claude Code
+uv run work-mcp register                 # (re)register the servers with your detected AI clients
+uv run work-mcp register -c cursor -c codex   # or name the clients: claude, codex, cursor, grok, hermes, openclaw
 uv run mcp-workday-login <url> <email>   # add a single account from a terminal prompt
 ```
 

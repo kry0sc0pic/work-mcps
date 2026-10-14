@@ -2,7 +2,6 @@
 
 import getpass
 import shutil
-import subprocess
 import sys
 import tomllib
 from collections import Counter
@@ -15,6 +14,7 @@ from ats_core import Credential, CredentialStoreError
 from rich.console import Console
 from rich.table import Table
 
+from work_mcp.clients import Client, ServerSpec, all_clients
 from work_mcp.importer import CsvFormatError, ImportPlan, apply_plan, build_plan
 from work_mcp.platforms import PLATFORMS, Platform
 
@@ -57,11 +57,10 @@ def repo_root() -> Path:
     return Path.cwd()
 
 
-def mcp_add_command(platform: Platform) -> list[str]:
-    return [
-        "claude", "mcp", "add", "--scope", "user", platform.id,
-        "--", "uv", "run", "--project", str(repo_root()), platform.server_script,
-    ]  # fmt: skip
+def server_spec(platform: Platform) -> ServerSpec:
+    # Absolute uv path: editors launched from the Dock or Start menu often lack uv on their PATH.
+    uv = shutil.which("uv") or "uv"
+    return ServerSpec(platform.id, uv, ["run", "--project", str(repo_root()), platform.server_script])
 
 
 def pick_platforms(ids: list[str] | None) -> list[Platform]:
@@ -153,25 +152,46 @@ def clean_path(raw: str) -> Path:
     return Path(raw).expanduser()
 
 
-def register(platforms: list[Platform], *, yes: bool) -> None:
-    claude = shutil.which("claude")  # resolved path, so Windows .cmd shims work
-    if not claude:
-        console.print("Claude Code CLI not found. Register manually with:")
-        for p in platforms:
-            console.print(f"  {' '.join(mcp_add_command(p))}")
+def choose_clients(ids: list[str] | None, *, yes: bool) -> list[Client]:
+    """Which AI clients to add the servers to: those named, else a picker with detected ones ticked."""
+    known = all_clients()
+    if ids:
+        unknown = [i for i in ids if i not in known]
+        if unknown:
+            raise typer.BadParameter(f"Unknown client {', '.join(unknown)}. Known: {', '.join(known)}")
+        return [known[i] for i in ids]
+    detected = [c for c in known.values() if c.detected()]
+    if yes or not sys.stdin.isatty():  # no TUI: take whatever is installed
+        return detected
+    choices = [
+        questionary.Choice(
+            f"{c.label}{' (detected)' if c in detected else ''}", value=c.id, checked=c in detected
+        )
+        for c in known.values()
+    ]
+    picked = questionary.checkbox(
+        "Add the servers to which AI clients? (space to toggle, enter to confirm)", choices=choices
+    ).ask()
+    return [known[i] for i in picked or []]
+
+
+def register(platforms: list[Platform], clients: list[Client]) -> None:
+    if not clients:
+        console.print("No supported AI client selected or found. To add the servers yourself:")
+        for c in all_clients().values():
+            for p in platforms:
+                console.print(f"  {c.label}: {c.manual(server_spec(p))}")
         return
-    for p in platforms:
-        cmd = mcp_add_command(p)
-        console.print(f"[dim]$ {' '.join(cmd)}[/dim]")
-        if yes or typer.confirm(f"Register the {p.label} server with Claude Code?", default=True):
-            r = subprocess.run([claude, *cmd[1:]], capture_output=True, text=True)
-            msg = (r.stdout + r.stderr).strip()
-            if r.returncode == 0:
-                console.print(f"[green]Registered {p.id}.[/green]")
-            elif "already exists" in msg:
-                console.print(f"{p.id} is already registered.")
+    for c in clients:
+        for p in platforms:
+            out = c.install(server_spec(p))
+            if out.status == "added":
+                console.print(f"[green]{c.label}: registered {p.id}.[/green]")
+            elif out.status == "exists":
+                console.print(f"{c.label}: {p.id} is already registered.")
             else:
-                console.print(f"[red]Failed:[/red] {msg}")
+                console.print(f"[red]{c.label}: failed[/red] ({out.message}). Do it by hand:")
+                console.print(f"  {c.manual(server_spec(p))}")
 
 
 def add_manually(platforms: list[Platform]) -> None:
@@ -210,7 +230,7 @@ def show_accounts(platforms: list[Platform]) -> None:
 def setup(
     yes: Annotated[bool, typer.Option("--yes", help="Accept defaults without asking.")] = False,
 ) -> None:
-    """Interactive wizard: choose platforms, add logins, register the servers."""
+    """Interactive wizard: choose platforms, add logins, register the servers with your AI clients."""
     console.rule("[bold]work-mcp setup")
     platforms = list(PLATFORMS.values())
     if len(platforms) > 1:
@@ -237,8 +257,10 @@ def setup(
     console.print()
     show_accounts(platforms)
     console.print()
-    register(platforms, yes=yes)
-    console.print("\n[bold green]Done.[/bold green] Restart Claude Code, then ask about your applications.")
+    register(platforms, choose_clients(None, yes=yes))
+    console.print(
+        "\n[bold green]Done.[/bold green] Restart your AI client, then ask about your applications."
+    )
 
 
 @app.command("import")
@@ -271,10 +293,13 @@ def accounts() -> None:
 @app.command("register")
 def register_cmd(
     platform: Annotated[list[str] | None, typer.Option("--platform", "-p")] = None,
-    yes: Annotated[bool, typer.Option("--yes")] = False,
+    client: Annotated[
+        list[str] | None, typer.Option("--client", "-c", help="claude, codex, cursor, grok, hermes, openclaw")
+    ] = None,
+    yes: Annotated[bool, typer.Option("--yes", help="Use every detected client without asking.")] = False,
 ) -> None:
-    """Register the MCP servers with Claude Code."""
-    register(pick_platforms(platform), yes=yes)
+    """Register the MCP servers with your AI clients (Claude Code, Codex, Cursor, Grok, Hermes, OpenClaw)."""
+    register(pick_platforms(platform), choose_clients(client, yes=yes))
 
 
 def main() -> None:

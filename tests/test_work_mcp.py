@@ -1,8 +1,10 @@
+import json
 import sys
 
 import pytest
 from typer.testing import CliRunner
 from work_mcp import cli
+from work_mcp.clients import ServerSpec, all_clients
 from work_mcp.importer import CsvFormatError, build_plan
 from work_mcp.platforms import PLATFORMS
 
@@ -132,7 +134,7 @@ def test_setup_wizard_manual_add(monkeypatch):
     assert r.exit_code == 0, r.output
     assert "typed-pw" not in r.output
     assert stored_password("hooli.wd5.myworkdayjobs.com") == "typed-pw"
-    assert "claude mcp add --scope user workday" in r.output  # claude CLI missing -> prints command
+    assert "claude mcp add --scope user workday" in r.output  # nothing detected -> prints commands
 
 
 def test_setup_wizard_csv_import(tmp_path, monkeypatch):
@@ -146,9 +148,77 @@ def test_setup_wizard_csv_import(tmp_path, monkeypatch):
 
 
 def test_register_command_shape():
-    cmd = cli.mcp_add_command(WD)
+    spec = cli.server_spec(WD)
+    cmd = all_clients()["claude"].argv(spec)
     assert cmd[:6] == ["claude", "mcp", "add", "--scope", "user", "workday"]
     assert cmd[-1] == "mcp-workday" and "--project" in cmd
+
+
+@pytest.mark.parametrize("client", ["codex", "grok"])
+def test_codex_and_grok_use_mcp_add(client):
+    cmd = all_clients()[client].argv(ServerSpec("workday", "uv", ["run", "x"]))
+    assert cmd == [client, "mcp", "add", "workday", "--", "uv", "run", "x"]
+
+
+def test_openclaw_takes_json():
+    cmd = all_clients()["openclaw"].argv(ServerSpec("workday", "uv", ["run", "x"]))
+    assert cmd[:4] == ["openclaw", "mcp", "set", "workday"]
+    assert json.loads(cmd[4]) == {"command": "uv", "args": ["run", "x"]}
+
+
+def test_cursor_json_merge_keeps_other_servers(fake_home):
+    cfg = fake_home / ".cursor" / "mcp.json"
+    cfg.parent.mkdir()
+    cfg.write_text(json.dumps({"mcpServers": {"other": {"command": "x"}}, "keep": 1}), encoding="utf-8")
+    cursor, spec = all_clients()["cursor"], ServerSpec("workday", "uv", ["run", "x"])
+    assert cursor.install(spec).status == "added"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    assert data["keep"] == 1 and "other" in data["mcpServers"]
+    assert data["mcpServers"]["workday"] == {"command": "uv", "args": ["run", "x"]}
+    assert cursor.install(spec).status == "exists"
+
+
+def test_cursor_creates_config_and_rejects_garbage(fake_home):
+    cursor, spec = all_clients()["cursor"], ServerSpec("workday", "uv", [])
+    assert cursor.install(spec).status == "added"
+    (fake_home / ".cursor" / "mcp.json").write_text("[1]", encoding="utf-8")
+    assert cursor.install(spec).status == "failed"
+
+
+def test_hermes_yaml_keeps_comments(fake_home):
+    cfg = fake_home / ".hermes" / "config.yaml"
+    cfg.parent.mkdir()
+    cfg.write_text(
+        "# my settings\nmodel: x\nmcp_servers:\n  other:\n    command: y  # keep\n", encoding="utf-8"
+    )
+    hermes, spec = all_clients()["hermes"], ServerSpec("workday", "uv", ["run", "x"])
+    assert hermes.install(spec).status == "added"
+    text = cfg.read_text(encoding="utf-8")
+    assert "# my settings" in text and "# keep" in text and "other:" in text
+    assert "workday:" in text and hermes.install(spec).status == "exists"
+
+
+def test_detection(fake_home, monkeypatch):
+    monkeypatch.setattr("work_mcp.clients.shutil.which", lambda _: None)
+    assert not any(c.detected() for c in all_clients().values())
+    (fake_home / ".cursor").mkdir()
+    assert [c.id for c in all_clients().values() if c.detected()] == ["cursor"]
+
+
+def test_missing_cli_prints_manual_command(monkeypatch):
+    monkeypatch.setattr("work_mcp.clients.shutil.which", lambda _: None)
+    out = all_clients()["codex"].install(ServerSpec("workday", "uv", []))
+    assert out.status == "failed" and "not found" in out.message
+
+
+def test_register_command_with_client_flag(fake_home):
+    r = runner.invoke(cli.app, ["register", "-c", "cursor"])
+    assert r.exit_code == 0, r.output
+    assert (
+        "workday"
+        in json.loads((fake_home / ".cursor" / "mcp.json").read_text(encoding="utf-8"))["mcpServers"]
+    )
+    assert runner.invoke(cli.app, ["register", "-c", "nope"]).exit_code != 0
 
 
 def test_bad_platform():

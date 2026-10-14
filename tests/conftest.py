@@ -29,3 +29,13 @@ def memory_keyring():
     backend = MemoryKeyring()
     keyring.set_keyring(backend)
     return backend
+
+
+@pytest.fixture(autouse=True)
+def fake_home(tmp_path, monkeypatch):
+    """Client config files (~/.cursor, ~/.hermes) must never be read or written for real."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    return home
