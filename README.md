@@ -52,7 +52,7 @@ Requires [uv](https://docs.astral.sh/uv/) and macOS (credentials use the system 
 [`keyring`](https://pypi.org/project/keyring/)).
 
 ```sh
-git clone <this repo> && cd work-mcps
+git clone https://github.com/kry0sc0pic/job-application-mcps.git work-mcps && cd work-mcps
 uv sync --all-packages
 uv run work-mcp setup
 ```
@@ -130,7 +130,9 @@ Override with `WORKDAY_CONFIG_DIR` and `WORKDAY_CACHE_DIR`; change the cache lif
 
 ## License
 
-GPL-3.0-or-later. See [LICENSE](./LICENSE).
+Copyright (C) 2026 Krishaay.
+
+Licensed under the GPL-3.0-or-later. See [LICENSE](./LICENSE).
 
 ## Development
 

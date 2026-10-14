@@ -1,0 +1,53 @@
+name: Platform / site request
+description: Ask for support for a careers site or ATS
+title: "[Platform] "
+labels: ["platform-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the request. **Don't paste passwords, cookies, tokens or HAR files here.**
+  - type: input
+    id: url
+    attributes:
+      label: Careers-site URL
+      description: Any public page on the site, such as a job posting or the login page.
+      placeholder: https://careers.example.com/
+    validations:
+      required: true
+  - type: input
+    id: ats
+    attributes:
+      label: ATS or platform (if you know)
+      description: For example Workday, Greenhouse, iCIMS, Eightfold, or a company's own system.
+  - type: dropdown
+    id: login
+    attributes:
+      label: How do you sign in as a candidate?
+      options:
+        - Email and password
+        - Single sign-on (Google, LinkedIn, ...)
+        - Email magic link or one-time code
+        - Not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: wants
+    attributes:
+      label: What would you like to check?
+      options:
+        - label: Application status
+        - label: Saved jobs
+        - label: Interview or task notifications
+        - label: Search open roles
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Number of employers on this platform you use, quirks you've noticed, or whether you can help test.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I'm interested in helping build or test this (PRs welcome).
