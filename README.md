@@ -26,7 +26,7 @@ PRs are welcome, especially new platforms. Each platform is its own package unde
 that maps the site's candidate API into the shared models in `ats-core`; `CLAUDE.md` has the
 architecture notes and a worked list of Workday quirks to learn from.
 
-Want a specific site supported? **Open an issue** with the careers-site URL and what you'd like to
+Want a specific site supported? **Open an issue** (use the "Platform / site request" form) with the careers-site URL and what you'd like to
 check (application status, saved jobs, and so on). Requests help decide what gets built next.
 
 ## To do
