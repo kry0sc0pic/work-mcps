@@ -311,3 +311,22 @@ def test_headless_command_plaintext_and_encrypted(fake_home, monkeypatch):
 def test_headless_refused_off_linux(monkeypatch):
     monkeypatch.setattr(cli.sys, "platform", "darwin")
     assert runner.invoke(cli.app, ["headless", "--mode", "plaintext", "--yes"]).exit_code == 1
+
+
+def test_add_oracle_command_saves_passwordless_account(monkeypatch):
+    from mcp_oracle.accounts import OracleAccount
+
+    acct = OracleAccount(host="careers.acme.com", site="CX_1", api_host="eg.fa.us2.oraclecloud.com")
+    monkeypatch.setattr(
+        "work_mcp.platforms.discover_api_host", lambda url: (OracleAccount.host_and_site(url), acct)[1]
+    )
+    url = "https://careers.acme.com/en/sites/CX_1/my-profile/sign-in"
+    r = runner.invoke(cli.app, ["add-oracle", url, "me@x.com", "--company", "Acme Corp"])
+    assert r.exit_code == 0, r.output
+    assert "work-mcp mailbox" in r.output  # no mailbox configured in tests
+    saved = PLATFORMS["oracle"].store().list()["careers.acme.com"]
+    assert saved["username"] == "me@x.com" and saved["company"] == "Acme Corp" and saved["site"] == "CX_1"
+    assert PLATFORMS["oracle"].store().get("careers.acme.com") is None  # nothing in the keychain
+
+    bad = runner.invoke(cli.app, ["add-oracle", "https://careers.acme.com/jobs", "me@x.com"])
+    assert bad.exit_code == 1 and "/sites/" in bad.output

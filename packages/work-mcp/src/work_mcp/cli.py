@@ -362,6 +362,25 @@ def accounts() -> None:
     show_accounts(list(PLATFORMS.values()))
 
 
+@app.command("add-oracle")
+def add_oracle(
+    url: Annotated[str, typer.Argument(help="The careers sign-in page URL (contains /sites/<SITE>/).")],
+    email: Annotated[str, typer.Argument(help="The email address you sign in with.")],
+    company: Annotated[str | None, typer.Option("--company", help="Display name.")] = None,
+) -> None:
+    """Add an Oracle Recruiting Cloud careers site (email-code login, no password)."""
+    platform = PLATFORMS["oracle"]
+    try:
+        ref = platform.parse(url, company, source="cli")
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+    platform.store().save_account(ref.key, email, ref.meta)
+    console.print(f"[green]Saved {ref.label}.[/green] The first refresh emails a login code to {email}.")
+    if load_mailbox() is None:
+        console.print("[yellow]Run `work-mcp mailbox` so the server can read that code.[/yellow]")
+
+
 @app.command()
 def headless(
     mode: Annotated[str | None, typer.Option("--mode", help="encrypted or plaintext")] = None,
