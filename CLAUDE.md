@@ -33,7 +33,7 @@ Ordinary exceptions in a tool are masked as a crash ("Error executing tool X", n
 expected errors (ValueError, AuthError, cancelled dialog) so the agent can read and act on them. Put it
 under `@mcp.tool()` on every tool.
 
-## Workday quirks (verified against live Umbrella, Hooli and Initech tenants)
+## Workday quirks (verified against live tenants)
 - Credentials and caches are keyed by **host** (`hooli.wd5.myworkdayjobs.com`); tenant = first host
   label; the site name is stored in the account index. One site per host.
 - The login page only includes `sessionSecureToken` when the request sends

@@ -159,7 +159,7 @@ async def workday_list_accounts() -> dict[str, dict[str, str]]:
 async def workday_set_company(account: str, company: str) -> bool:
     """Set the display name for a registered account, e.g. workday_set_company("umbrella.wd5…", "Umbrella").
 
-    The default is guessed from the URL and is wrong for some tenants (the tenant name often differs from the company).
+    The default is guessed from the URL and is wrong for some tenants, whose name differs from the company.
     """
     return credential_store(WorkdaySettings()).update_meta(account, company=company.strip())
 
