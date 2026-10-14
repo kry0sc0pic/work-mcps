@@ -8,7 +8,7 @@ applications stand without clicking through every employer's careers portal.
 Requires [uv](https://docs.astral.sh/uv/) on macOS, Windows or Linux (see [Platform support](#platform-support)).
 
 ```sh
-git clone https://github.com/kry0sc0pic/job-application-mcps.git work-mcps && cd work-mcps
+git clone https://github.com/kry0sc0pic/work-mcps.git work-mcps && cd work-mcps
 uv sync --all-packages
 uv run work-mcp setup
 ```
