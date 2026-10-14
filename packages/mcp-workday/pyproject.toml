@@ -22,8 +22,3 @@ build-backend = "uv_build"
 
 [tool.uv.sources]
 ats-core = { workspace = true }
-
-[dependency-groups]
-dev = [
-    "playwright>=1.64.0",
-]

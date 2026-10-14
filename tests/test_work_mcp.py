@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 from typer.testing import CliRunner
 from work_mcp import cli
@@ -198,3 +200,16 @@ def test_missing_file_is_a_clean_error(tmp_path):
     for args in (["--dry-run"], []):
         r = runner.invoke(cli.app, ["import", str(tmp_path / "nope.csv"), *args])
         assert r.exit_code == 1 and "Can't read" in r.output and "Traceback" not in r.output
+
+
+@pytest.mark.parametrize(
+    "platform, raw, expected",
+    [
+        ("darwin", "'/Users/me/My\\ Files/pw.csv' ", "/Users/me/My Files/pw.csv"),
+        ("linux", "/home/me/My\\ Files/pw.csv", "/home/me/My Files/pw.csv"),
+        ("win32", '"C:\\Users\\me\\Downloads\\pw.csv"', "C:\\Users\\me\\Downloads\\pw.csv"),
+    ],
+)
+def test_clean_path(monkeypatch, platform, raw, expected):
+    monkeypatch.setattr(sys, "platform", platform)
+    assert str(cli.clean_path(raw)).replace("\\", "/") == expected.replace("\\", "/")

@@ -15,12 +15,14 @@ employer/recruiter tooling). Python 3.12, uv workspace.
 - `packages/ats-core`: platform-agnostic `Application`/`Delta` models, `CredentialStore`
   (keyring + non-secret JSON index), `SnapshotStore` + `diff`. New platforms map into these models.
 - `packages/mcp-workday`: `accounts.py` (URL parsing), `auth.py` (login), `client.py` (CXS API),
-  `server.py` (tools), `prompt.py` (native dialog), `cli.py` (terminal password prompt), `tools/capture.py` (Playwright traffic recorder).
+  `server.py` (tools), `prompt.py` (native dialog), `cli.py` (terminal password prompt).
 - `packages/work-mcp`: the `work-mcp` CLI (typer + rich). `platforms.py` is the registry
   (`Platform` protocol; add a platform here to make it appear in `setup` and `import`), `importer.py`
   parses password-manager CSVs into a dry-run `ImportPlan` before anything is saved, `cli.py` has the
   wizard and commands.
 - `packages/mcp-greenhouse`: stub, not wired to the credential store.
+- `tools/capture.py`: platform-agnostic Playwright traffic recorder for reverse-engineering a new
+  site (`uv run python tools/capture.py <login-url>`). Output goes to gitignored `.captures/`.
 - `tests/`: one flat directory. `conftest.py` swaps in an in-memory keyring so tests never touch the
   real Keychain.
 
@@ -70,6 +72,15 @@ the entry title in as the company hint unless it looks like a URL.
 host-only URLs) get status `lookup` and are resolved by `Platform.discover` only after the user
 confirms (Workday: the `Sitemap:` lines in the host's public robots.txt). Don't make the count
 depend on that lookup. Piped stdin (tests, scripts) skips the TUI and asks a y/n confirm instead.
+
+## Cross-platform
+Must work on macOS, Windows and Linux (CI runs all three; only macOS has been hand-tested).
+- Keychain access goes through `CredentialStore`, which turns `keyring` errors into `CredentialStoreError`
+  (e.g. no Secret Service on headless Linux). Never add a plaintext-file fallback.
+- Native dialog (`prompt.py`): `osascript` on macOS, a Tk subprocess elsewhere; both take values as argv.
+- Paths: XDG on macOS/Linux, `%APPDATA%` / `%LOCALAPPDATA%` on Windows. Pass `encoding="utf-8"` to every
+  text file read/write (Windows defaults to cp1252) and don't assume `/` separators or `chmod` effects.
+- Tests that fake the OS monkeypatch `sys.platform` (it is global, so keep those tests short).
 
 ## Read-only policy
 Tools that change data on an employer's site (apply, withdraw, edit profile, upload) are out of scope

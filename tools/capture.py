@@ -1,12 +1,13 @@
-"""Open a headed browser on a Workday tenant and record all network traffic.
+"""Open a headed browser on any careers site and record all network traffic, to reverse-engineer its
+candidate API when building support for a new platform.
 
 You log in by hand (credentials never pass through this script). Everything is written to
-.captures/<timestamp>/ (gitignored): a HAR with response bodies, a requests.jsonl of XHR/fetch
+.captures/<host>-<timestamp>/ (gitignored): a HAR with response bodies, a requests.jsonl of XHR/fetch
 calls, and storage_state.json (cookies/localStorage) for replaying the session later.
 Treat that directory as secret: it contains your session tokens and the password you typed
 (it appears in the login POST body).
 
-    uv run python packages/mcp-workday/tools/capture.py <careers-site-login-url>
+    uv run python tools/capture.py <careers-site-login-url>
 """
 
 import asyncio
@@ -14,14 +15,16 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from playwright.async_api import Request, Response, async_playwright
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[1]
 
 
 async def main(url: str) -> None:
-    out = ROOT / ".captures" / datetime.now().strftime("%Y%m%d-%H%M%S")
+    host = urlparse(url).hostname or "site"
+    out = ROOT / ".captures" / f"{host}-{datetime.now():%Y%m%d-%H%M%S}"
     out.mkdir(parents=True)
     log = (out / "requests.jsonl").open("a")
 
@@ -51,7 +54,7 @@ async def main(url: str) -> None:
 
     async with async_playwright() as p:
         ctx = await p.chromium.launch_persistent_context(
-            ROOT / ".browser-profile" / "workday",
+            ROOT / ".browser-profile" / host,
             headless=False,
             record_har_path=out / "capture.har",
             record_har_content="embed",

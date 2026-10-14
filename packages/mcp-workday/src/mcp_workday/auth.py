@@ -69,7 +69,7 @@ def cookies_for(http: httpx.AsyncClient, host: str) -> dict[str, str]:
 
 def load_cached_session(path: Path) -> dict[str, str] | None:
     try:
-        cookies = json.loads(path.read_text())
+        cookies = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
         return None
     return cookies if SESSION_COOKIE in cookies else None
@@ -77,5 +77,5 @@ def load_cached_session(path: Path) -> dict[str, str] | None:
 
 def save_session(path: Path, cookies: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cookies))
+    path.write_text(json.dumps(cookies), encoding="utf-8")
     path.chmod(0o600)

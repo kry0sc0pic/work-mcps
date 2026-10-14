@@ -1,4 +1,5 @@
 import json
+import sys
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
@@ -288,6 +289,8 @@ def test_is_fresh():
 def test_dialog_passes_values_as_argv(monkeypatch):
     from mcp_workday import prompt
 
+    monkeypatch.setattr(sys, "platform", "darwin")
+
     calls = []
 
     def fake_run(cmd, **kw):
@@ -304,8 +307,38 @@ def test_dialog_passes_values_as_argv(monkeypatch):
 def test_dialog_cancel(monkeypatch):
     from mcp_workday import prompt
 
+    monkeypatch.setattr(sys, "platform", "darwin")
+
     monkeypatch.setattr(
         prompt.subprocess, "run", lambda *a, **k: type("R", (), {"returncode": 1, "stdout": ""})()
     )
     with pytest.raises(prompt.PromptCancelledError):
+        prompt._dialog("x")
+
+
+@pytest.mark.parametrize("platform", ["win32", "linux"])
+def test_dialog_uses_tk_off_macos(monkeypatch, platform):
+    from mcp_workday import prompt
+
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        return type("R", (), {"returncode": 0, "stdout": "typed"})()
+
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(prompt.subprocess, "run", fake_run)
+    assert prompt._dialog("Password:", "u", hidden=True) == "typed"
+    cmd = calls[0]
+    assert cmd[0] == sys.executable and cmd[-3:] == ["Password:", "u", "hidden"]
+
+
+def test_dialog_without_display_points_to_the_cli(monkeypatch):
+    from mcp_workday import prompt
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(
+        prompt.subprocess, "run", lambda *a, **k: type("R", (), {"returncode": 2, "stdout": ""})()
+    )
+    with pytest.raises(prompt.PromptUnavailableError, match="mcp-workday-login"):
         prompt._dialog("x")

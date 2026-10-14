@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -9,8 +10,9 @@ from ats_core.models import Application, Delta, StatusChange
 
 
 def default_cache_dir() -> Path:
-    base = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
-    return base / "work-mcps"
+    if sys.platform == "win32":
+        return Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "work-mcps"
+    return Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "work-mcps"
 
 
 class SnapshotStore:
@@ -19,7 +21,7 @@ class SnapshotStore:
 
     def load(self) -> tuple[str | None, dict[str, Application]]:
         try:
-            raw = json.loads(self.path.read_text())
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
         except (FileNotFoundError, json.JSONDecodeError):
             return None, {}
         apps = {a["id"]: Application.model_validate(a) for a in raw["applications"]}
@@ -32,7 +34,7 @@ class SnapshotStore:
             "applications": [a.model_dump(mode="json") for a in apps],
         }
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(payload, indent=2))
+        tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         tmp.replace(self.path)
 
 

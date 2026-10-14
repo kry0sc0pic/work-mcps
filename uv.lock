@@ -573,16 +573,8 @@ dependencies = [
     { name = "ats-core" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "playwright" },
-]
-
 [package.metadata]
 requires-dist = [{ name = "ats-core", editable = "packages/ats-core" }]
-
-[package.metadata.requires-dev]
-dev = [{ name = "playwright", specifier = ">=1.64.0" }]
 
 [[package]]
 name = "mdurl"
@@ -1281,6 +1273,7 @@ source = { virtual = "." }
 
 [package.dev-dependencies]
 dev = [
+    { name = "playwright" },
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1291,6 +1284,7 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "playwright", specifier = ">=1.64.0" },
     { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },

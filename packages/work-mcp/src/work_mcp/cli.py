@@ -11,7 +11,7 @@ from typing import Annotated
 
 import questionary
 import typer
-from ats_core import Credential
+from ats_core import Credential, CredentialStoreError
 from rich.console import Console
 from rich.table import Table
 
@@ -30,7 +30,8 @@ EXPORT_HELP = (
     "used, and nothing is printed."
 )
 PRIVACY_NOTE = (
-    "Your passwords are read on this machine and saved to your Keychain. They are never uploaded anywhere."
+    "Your passwords are read on this machine and saved to your system keychain. "
+    "They are never uploaded anywhere."
 )
 STATUS_STYLE = {
     "new": "green",
@@ -144,8 +145,17 @@ def run_import(path: Path, platforms: list[Platform], *, yes: bool, delete: bool
     return saved
 
 
+def clean_path(raw: str) -> Path:
+    """A path typed or dragged into the terminal: strip quotes, and shell escapes except on Windows."""
+    raw = raw.strip().strip("'\"")
+    if sys.platform != "win32":
+        raw = raw.replace("\\ ", " ")
+    return Path(raw).expanduser()
+
+
 def register(platforms: list[Platform], *, yes: bool) -> None:
-    if not shutil.which("claude"):
+    claude = shutil.which("claude")  # resolved path, so Windows .cmd shims work
+    if not claude:
         console.print("Claude Code CLI not found. Register manually with:")
         for p in platforms:
             console.print(f"  {' '.join(mcp_add_command(p))}")
@@ -154,7 +164,7 @@ def register(platforms: list[Platform], *, yes: bool) -> None:
         cmd = mcp_add_command(p)
         console.print(f"[dim]$ {' '.join(cmd)}[/dim]")
         if yes or typer.confirm(f"Register the {p.label} server with Claude Code?", default=True):
-            r = subprocess.run(cmd, capture_output=True, text=True)
+            r = subprocess.run([claude, *cmd[1:]], capture_output=True, text=True)
             msg = (r.stdout + r.stderr).strip()
             if r.returncode == 0:
                 console.print(f"[green]Registered {p.id}.[/green]")
@@ -219,8 +229,8 @@ def setup(
     choice = typer.prompt("Choice", default="1" if not yes else "3")
     if choice == "1":
         console.print(f"\n{EXPORT_HELP}\n")
-        raw_path = typer.prompt("Path to the CSV (drag the file here)").strip().strip("'\"")
-        run_import(Path(raw_path.replace("\\ ", " ")).expanduser(), platforms, yes=yes, delete=None)
+        raw_path = typer.prompt("Path to the CSV (drag the file here)")
+        run_import(clean_path(raw_path), platforms, yes=yes, delete=None)
     elif choice == "2":
         add_manually(platforms)
 
@@ -265,3 +275,11 @@ def register_cmd(
 ) -> None:
     """Register the MCP servers with Claude Code."""
     register(pick_platforms(platform), yes=yes)
+
+
+def main() -> None:
+    try:
+        app()
+    except CredentialStoreError as e:
+        console.print(f"[red]{e}[/red]")
+        raise SystemExit(1) from e
