@@ -1,4 +1,6 @@
 import asyncio
+import functools
+from collections.abc import Awaitable, Callable
 from datetime import date, timedelta
 from typing import Literal
 
@@ -14,14 +16,30 @@ from ats_core import (
     is_fresh,
 )
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel
 
 from mcp_workday.accounts import WorkdayAccount
+from mcp_workday.auth import AuthError
 from mcp_workday.client import WorkdayClient
 from mcp_workday.config import WorkdaySettings
-from mcp_workday.prompt import prompt_credentials
+from mcp_workday.prompt import PromptCancelledError, prompt_credentials
 
 mcp = MCPServer("workday")
+
+
+def user_errors[**P, R](fn: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+    """mcp 2.x hides ordinary exceptions as crashes; only ToolError messages reach the model.
+    Expected failures (bad input, unknown company, cancelled dialog) must say what went wrong."""
+
+    @functools.wraps(fn)
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            return await fn(*args, **kwargs)
+        except (ValueError, AuthError, PromptCancelledError, RuntimeError) as e:
+            raise ToolError(str(e)) from e
+
+    return wrapper
 
 
 def credential_store(settings: WorkdaySettings) -> CredentialStore:
@@ -78,6 +96,7 @@ def filter_applications(
 
 
 @mcp.tool()
+@user_errors
 async def workday_add_account(
     url: str, username: str | None = None, company: str | None = None
 ) -> dict[str, str]:
@@ -101,6 +120,7 @@ async def workday_add_account(
 
 
 @mcp.tool()
+@user_errors
 async def workday_save_credentials(
     url: str, username: str, password: str, company: str | None = None
 ) -> dict[str, str]:
@@ -123,6 +143,7 @@ async def workday_save_credentials(
 
 
 @mcp.tool()
+@user_errors
 async def workday_list_accounts() -> dict[str, dict[str, str]]:
     """List the Workday employers the user has registered: the index of known companies.
 
@@ -134,6 +155,7 @@ async def workday_list_accounts() -> dict[str, dict[str, str]]:
 
 
 @mcp.tool()
+@user_errors
 async def workday_set_company(account: str, company: str) -> bool:
     """Set the display name for a registered account, e.g. workday_set_company("umbrella.wd5…", "Umbrella").
 
@@ -143,6 +165,7 @@ async def workday_set_company(account: str, company: str) -> bool:
 
 
 @mcp.tool()
+@user_errors
 async def workday_delete_credentials(account: str) -> bool:
     """Delete the saved credentials and cached session for an account (its host)."""
     settings = WorkdaySettings()
@@ -211,6 +234,7 @@ def with_company(settings: WorkdaySettings, apps: list[Application]) -> list[App
 
 
 @mcp.tool()
+@user_errors
 async def workday_get_applications(
     company: str | None = None,
     account: str | None = None,
@@ -246,6 +270,7 @@ async def workday_get_applications(
 
 
 @mcp.tool()
+@user_errors
 async def workday_get_delta(
     company: str | None = None, account: str | None = None, commit: bool = True
 ) -> DeltaResult:
@@ -281,6 +306,7 @@ async def workday_get_delta(
 
 
 @mcp.tool()
+@user_errors
 async def workday_get_status_history(
     company: str | None = None,
     account: str | None = None,

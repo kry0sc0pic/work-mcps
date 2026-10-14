@@ -26,6 +26,10 @@ employer/recruiter tooling). Python 3.12, uv workspace.
 
 ## mcp SDK is 2.x
 `from mcp.server.mcpserver import MCPServer`, not `FastMCP`. Most online examples are v1.
+Ordinary exceptions in a tool are masked as a crash ("Error executing tool X", no detail); only
+`ToolError` messages reach the model. The `@user_errors` decorator in `mcp_workday/server.py` converts
+expected errors (ValueError, AuthError, cancelled dialog) so the agent can read and act on them. Put it
+under `@mcp.tool()` on every tool.
 
 ## Workday quirks (verified against live Umbrella, Hooli and Initech tenants)
 - Credentials and caches are keyed by **host** (`hooli.wd5.myworkdayjobs.com`); tenant = first host
@@ -59,6 +63,19 @@ Tool filters (`company`, `status`, ...) run in Python over the loaded rows; fine
 non-secret fields only: `username`, `added_at` (kept when a login is re-saved), plus platform meta
 (Workday: `site`, `company`, `source`). Platforms put these in `AccountRef.meta`. The CSV importer feeds
 the entry title in as the company hint unless it looks like a URL.
+
+## CSV import UX
+`work-mcp import` parses first, then shows one `questionary` checkbox row per platform
+(`Workday: N passwords`, counted by host match alone). Rows whose URL lacks details (Workday
+host-only URLs) get status `lookup` and are resolved by `Platform.discover` only after the user
+confirms (Workday: the `Sitemap:` lines in the host's public robots.txt). Don't make the count
+depend on that lookup. Piped stdin (tests, scripts) skips the TUI and asks a y/n confirm instead.
+
+## Read-only policy
+Tools that change data on an employer's site (apply, withdraw, edit profile, upload) are out of scope
+and will not be merged, for safety: the servers hold real logins. Platform tools may log in and issue
+GET requests only. Local-setup tools (add/delete/rename an account) only touch the user's own files and
+keychain. If a request would need a write call to an employer, say no and point to this policy.
 
 ## Security rules
 - Never print, log or commit passwords or session cookies. `.captures/` holds plaintext passwords

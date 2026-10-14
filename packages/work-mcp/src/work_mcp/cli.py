@@ -3,10 +3,13 @@
 import getpass
 import shutil
 import subprocess
+import sys
 import tomllib
+from collections import Counter
 from pathlib import Path
 from typing import Annotated
 
+import questionary
 import typer
 from ats_core import Credential
 from rich.console import Console
@@ -20,13 +23,23 @@ console = Console()
 
 EXPORT_HELP = (
     "Export a CSV from your password manager:\n"
-    "  • Apple Passwords: File → Export All Passwords…\n"
+    "  • Apple Passwords: File → Export All Passwords… (exports everything at once)\n"
     "  • Chrome: Settings → Passwords → Export passwords\n"
     "  • 1Password / Bitwarden: export as CSV\n"
     "The file holds every password you own in plain text. Only rows for the platforms you pick are "
     "used, and nothing is printed."
 )
-STATUS_STYLE = {"new": "green", "update": "yellow", "unchanged": "dim", "conflict": "red", "skipped": "red"}
+PRIVACY_NOTE = (
+    "Your passwords are read on this machine and saved to your Keychain. They are never uploaded anywhere."
+)
+STATUS_STYLE = {
+    "new": "green",
+    "update": "yellow",
+    "lookup": "cyan",
+    "unchanged": "dim",
+    "conflict": "red",
+    "skipped": "red",
+}
 
 
 def read_password(prompt: str) -> str:
@@ -74,21 +87,55 @@ def show_plan(plan: ImportPlan) -> None:
     console.print(f"[dim]{plan.rows_total} rows read, {plan.rows_ignored} unrelated rows ignored.[/dim]")
 
 
-def run_import(path: Path, platforms: list[Platform], *, yes: bool, delete: bool | None) -> int:
+def choose_platforms(plan: ImportPlan) -> list[str]:
+    """Let the user pick which platforms' passwords to import: one `Platform: N passwords` row each."""
+    counts = Counter(it.platform.id for it in plan.writable())
+    labels = {p.id: p.label for p in PLATFORMS.values()}
+    if not counts:
+        return []
+    if not sys.stdin.isatty():  # piped input (scripts, tests): no TUI, just confirm everything
+        total = sum(counts.values())
+        return list(counts) if typer.confirm(f"Save {total} login(s) to the keychain?", default=True) else []
+    choices = [
+        questionary.Choice(f"{labels[pid]}: {n} password{'s' if n != 1 else ''}", value=pid, checked=True)
+        for pid, n in counts.items()
+    ]
+    picked = questionary.checkbox(
+        "Select what to import (space to toggle, enter to confirm)", choices=choices
+    ).ask()
+    return picked or []
+
+
+def load_plan(path: Path, platforms: list[Platform]) -> ImportPlan:
     try:
-        plan = build_plan(path, [p.id for p in platforms])
+        return build_plan(path, [p.id for p in platforms])
     except (OSError, CsvFormatError) as e:
         console.print(f"[red]Can't read {path}: {e}[/red]")
         raise typer.Exit(1) from e
+
+
+def run_import(path: Path, platforms: list[Platform], *, yes: bool, delete: bool | None) -> int:
+    console.print(f"[dim]{PRIVACY_NOTE}[/dim]")
+    plan = load_plan(path, platforms)
     if not plan.items:
         console.print("No matching logins found in that file.")
         return 0
-    show_plan(plan)
-    todo = plan.writable()
-    saved = 0
-    if todo and (yes or typer.confirm(f"Save {len(todo)} login(s) to the keychain?", default=True)):
-        saved = apply_plan(plan)
+    skipped = sum(1 for i in plan.items if i.status in ("skipped", "conflict"))
+    unchanged = sum(1 for i in plan.items if i.status == "unchanged")
+    for n, what in ((skipped, "skipped or conflicting"), (unchanged, "already saved")):
+        if n:
+            console.print(f"[dim]{n} row(s) {what}. Run with --dry-run for details.[/dim]")
+    selected = list({i.platform.id for i in plan.writable()}) if yes else choose_platforms(plan)
+    saved = apply_plan(plan, set(selected)) if selected else 0
+    for it in plan.items:
+        if it.status == "skipped" and it.source_url and it.credential and selected:
+            console.print(f"[yellow]Skipped {it.platform.key_for(it.source_url)}: {it.detail}[/yellow]")
+    if saved:
         console.print(f"[green]Saved {saved} login(s) to the keychain.[/green]")
+    elif plan.writable():
+        console.print("Nothing imported.")
+    else:
+        console.print("Nothing new to import.")
     if delete is None:
         delete = typer.confirm(f"Delete {path.name} now? It contains plaintext passwords.", default=True)
     if delete:
@@ -199,7 +246,8 @@ def import_csv(
     """Import matching logins from a password-manager CSV export."""
     platforms = pick_platforms(platform)
     if dry_run:
-        show_plan(build_plan(path.expanduser(), [p.id for p in platforms]))
+        console.print(f"[dim]{PRIVACY_NOTE}[/dim]")
+        show_plan(load_plan(path.expanduser(), platforms))
         return
     run_import(path.expanduser(), platforms, yes=yes, delete=delete)
 

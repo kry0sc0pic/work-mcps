@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlparse
 
+import httpx
 from ats_core import CredentialStore
 from mcp_workday.accounts import WorkdayAccount
 from mcp_workday.config import WorkdaySettings
@@ -30,7 +31,26 @@ class Platform(Protocol):
         """Raises ValueError when the URL lacks something needed to log in."""
         ...
 
+    def key_for(self, url: str) -> str:
+        """The credential-store key a URL maps to, even when `parse` can't resolve everything."""
+        ...
+
+    def discover(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        """Like `parse`, but may make public (unauthenticated) requests to find missing details.
+        Raises ValueError if it can't."""
+        ...
+
     def store(self) -> CredentialStore: ...
+
+
+def sites_from_robots(robots_txt: str, host: str) -> list[str]:
+    """Site names from `Sitemap: https://<host>/<Site>/siteMap.xml` lines, in file order."""
+    pattern = re.compile(rf"^sitemap:\s*https?://{re.escape(host)}/([^/\s]+)/siteMap\.xml", re.I | re.M)
+    seen: list[str] = []
+    for site in pattern.findall(robots_txt):
+        if site not in seen:
+            seen.append(site)
+    return seen
 
 
 class Workday:
@@ -48,6 +68,29 @@ class Workday:
         acct = WorkdayAccount.from_url(url)
         meta = acct.meta(source, company)
         return AccountRef(key=acct.key, meta=meta, label=f"{meta['company']} ({acct.host})")
+
+    def key_for(self, url: str) -> str:
+        raw = url.strip()
+        return (urlparse(raw if "://" in raw else "https://" + raw).hostname or "").lower()
+
+    def discover(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        """Host-only URLs (common in password managers) don't name the site; robots.txt does."""
+        try:
+            return self.parse(url, company, source)
+        except ValueError:
+            pass
+        host = self.key_for(url)
+        try:
+            resp = httpx.get(f"https://{host}/robots.txt", headers={"user-agent": "Mozilla/5.0"}, timeout=15)
+            resp.raise_for_status()
+        except httpx.HTTPError as e:
+            raise ValueError(
+                f"couldn't reach {host} to look up its site name ({e.__class__.__name__})"
+            ) from e
+        sites = sites_from_robots(resp.text, host)
+        if not sites:
+            raise ValueError(f"{host} doesn't list a careers site; add it with a full careers URL")
+        return self.parse(f"https://{host}/{sites[0]}", company, source)
 
     def store(self) -> CredentialStore:
         return CredentialStore("workday", WorkdaySettings().config_dir)

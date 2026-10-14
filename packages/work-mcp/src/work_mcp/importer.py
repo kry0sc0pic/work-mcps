@@ -18,7 +18,7 @@ _ALIASES = {
     "name": ("name", "title"),
 }
 
-Status = Literal["new", "update", "unchanged", "conflict", "skipped"]
+Status = Literal["new", "update", "lookup", "unchanged", "conflict", "skipped"]
 
 
 @dataclass
@@ -29,10 +29,11 @@ class PlannedItem:
     ref: AccountRef | None = None
     credential: Credential | None = None
     source_url: str = ""
+    company_hint: str | None = None
 
     @property
     def writable(self) -> bool:
-        return self.status in ("new", "update")
+        return self.status in ("new", "update", "lookup")
 
 
 @dataclass
@@ -88,21 +89,25 @@ def build_plan(path: Path, platform_ids: list[str] | None = None) -> ImportPlan:
                 PlannedItem(platform, "skipped", "no username or password saved", source_url=row["url"])
             )
             continue
-        try:
-            ref = platform.parse(row["url"], _company_hint(row["name"]), source="csv-import")
-        except ValueError as e:
-            items.append(PlannedItem(platform, "skipped", str(e).split(":")[0], source_url=row["url"]))
-            continue
+        company = _company_hint(row["name"])
         cred = Credential(username=row["username"], password=row["password"])
-        item = PlannedItem(platform, "new", "", ref, cred, row["url"])
-        prior = seen.get((platform.id, ref.key))
+        key = platform.key_for(row["url"])
+        try:
+            ref = platform.parse(row["url"], company, source="csv-import")
+            item = PlannedItem(platform, "new", "", ref, cred, row["url"])
+        except ValueError:
+            # Owned by the platform but missing a detail (e.g. Workday host with no site name).
+            # Still counts as one of its passwords; the detail is looked up once the user confirms.
+            item = PlannedItem(platform, "lookup", "site name will be looked up", None, cred, row["url"])
+            item.company_hint = company
+        prior = seen.get((platform.id, key))
         if prior is None:
-            seen[(platform.id, ref.key)] = item
+            seen[(platform.id, key)] = item
             items.append(item)
-        elif prior.credential == cred and prior.ref and prior.ref.meta["site"] == ref.meta["site"]:
-            continue  # exact duplicate row
+        elif prior.credential == cred:
+            continue  # same login listed twice
         else:
-            item.status, item.detail = "conflict", f"another login for {ref.key} was already in the file"
+            item.status, item.detail = "conflict", f"another login for {key} was already in the file"
             items.append(item)
     for item in items:
         if item.status == "new":
@@ -124,9 +129,19 @@ def _classify_against_store(item: PlannedItem) -> None:
         item.status, item.detail = "update", "replaces the saved login"
 
 
-def apply_plan(plan: ImportPlan) -> int:
+def apply_plan(plan: ImportPlan, only_platforms: set[str] | None = None) -> int:
+    """Save the writable items, optionally limited to some platform ids. Returns how many were saved."""
     n = 0
     for item in plan.writable():
+        if only_platforms is not None and item.platform.id not in only_platforms:
+            continue
+        if item.status == "lookup":
+            try:
+                item.ref = item.platform.discover(item.source_url, item.company_hint, source="csv-import")
+            except ValueError as e:
+                item.status, item.detail = "skipped", str(e)
+                continue
+            item.status = "new"
         assert item.ref and item.credential
         item.platform.store().save(item.ref.key, item.credential, meta=item.ref.meta)
         n += 1

@@ -44,14 +44,35 @@ def write(tmp_path, text, name="export.csv"):
 
 def test_plan_classifies_rows(tmp_path):
     plan = build_plan(write(tmp_path, CHROME))
-    by = {(i.ref.key if i.ref else i.source_url): i.status for i in plan.items}
-    assert by["hooli.wd5.myworkdayjobs.com"] in ("new", "conflict")
     statuses = sorted(i.status for i in plan.items)
-    assert statuses == ["conflict", "new", "new", "skipped", "skipped"]  # dup row collapsed
+    # hooli, initech = new; host-only acme = lookup; nopass = skipped; conflicting hooli login = conflict
+    assert statuses == ["conflict", "lookup", "new", "new", "skipped"]  # exact duplicate row collapsed
     assert plan.rows_total == 7 and plan.rows_ignored == 1  # github
     skipped = {i.source_url: i.detail for i in plan.items if i.status == "skipped"}
     assert "no username or password" in skipped["https://beta.wd1.myworkdayjobs.com/Careers"]
-    assert "No site name" in skipped["https://acme.wd1.myworkdayjobs.com"]
+
+
+def test_host_only_rows_count_as_workday_without_a_site(tmp_path):
+    csv_text = "Title,URL,Username,Password\nGlobex,https://globex.wd1.myworkdayjobs.com,me@x.com,pw\n"
+    plan = build_plan(write(tmp_path, csv_text))
+    (item,) = plan.writable()
+    assert item.status == "lookup" and item.platform.id == "workday" and item.ref is None
+    assert item.company_hint == "Globex"
+
+
+ROBOTS = """User-agent: *
+Sitemap: https://globex.wd1.myworkdayjobs.com/Globex_Career/siteMap.xml
+Sitemap: https://globex.wd1.myworkdayjobs.com/Other_Site/siteMap.xml
+Sitemap: https://other.wd1.myworkdayjobs.com/Nope/siteMap.xml
+Sitemap: https://globex.wd1.myworkdayjobs.com/Globex_Career/siteMap.xml
+"""
+
+
+def test_sites_from_robots():
+    from work_mcp.platforms import sites_from_robots
+
+    assert sites_from_robots(ROBOTS, "globex.wd1.myworkdayjobs.com") == ["Globex_Career", "Other_Site"]
+    assert sites_from_robots("User-agent: *\nDisallow: /", "globex.wd1.myworkdayjobs.com") == []
 
 
 @pytest.mark.parametrize(
@@ -131,3 +152,49 @@ def test_register_command_shape():
 def test_bad_platform():
     r = runner.invoke(cli.app, ["import", "x.csv", "-p", "nope"])
     assert r.exit_code != 0
+
+
+def _pick(plan, keys: str, monkeypatch) -> list[str]:
+    """Drive the real questionary checkbox with simulated key presses."""
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    class Tty:
+        def isatty(self):
+            return True
+
+    monkeypatch.setattr(cli.sys, "stdin", Tty())
+    with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+        pipe.send_text(keys)
+        return cli.choose_platforms(plan)
+
+
+def test_platform_picker_defaults_to_all_selected(tmp_path, monkeypatch):
+    plan = build_plan(write(tmp_path, APPLE))
+    assert _pick(plan, "\r", monkeypatch) == ["workday"]
+
+
+def test_platform_picker_can_deselect(tmp_path, monkeypatch):
+    plan = build_plan(write(tmp_path, APPLE))
+    assert _pick(plan, " \r", monkeypatch) == []  # space toggles the first row off
+
+
+def test_picker_skipped_when_nothing_importable(tmp_path):
+    plan = build_plan(write(tmp_path, "Title,URL,Username,Password\nGH,https://github.com,me,pw\n"))
+    assert cli.choose_platforms(plan) == []
+
+
+def test_deselected_platform_is_not_saved(tmp_path, monkeypatch):
+    f = write(tmp_path, APPLE)
+    monkeypatch.setattr(cli, "choose_platforms", lambda plan: [])
+    r = runner.invoke(cli.app, ["import", str(f), "--keep"])
+    assert r.exit_code == 0 and "Nothing imported" in r.output
+    assert WD.store().list() == {}
+    assert f.exists()
+
+
+def test_missing_file_is_a_clean_error(tmp_path):
+    for args in (["--dry-run"], []):
+        r = runner.invoke(cli.app, ["import", str(tmp_path / "nope.csv"), *args])
+        assert r.exit_code == 1 and "Can't read" in r.output and "Traceback" not in r.output

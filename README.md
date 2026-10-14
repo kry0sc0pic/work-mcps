@@ -3,6 +3,28 @@
 MCP servers for the **candidate side** of applicant tracking systems (ATS): check where your job
 applications stand without clicking through every employer's careers portal.
 
+## Read-only by design
+
+The MCP tools only **read** from employer portals. They log in and fetch your application status;
+they can't apply, withdraw, edit a profile, upload files, or change anything on an employer's side.
+That's deliberate: these servers hold your real logins and act on your behalf, so keeping them
+read-only limits the damage a bug, a bad prompt, or a misbehaving agent can do. (The tools that
+manage your local setup, such as adding or deleting a saved account, only touch files on your
+machine.)
+
+## Disclaimer
+
+This is an unofficial, independent project. It isn't affiliated with, endorsed by, or sponsored by
+Workday, Greenhouse, or any employer or ATS vendor named here, and all trademarks belong to their
+owners.
+
+It signs in to careers portals with your own credentials and reads your own data. Automated access
+may be restricted by a site's terms of service, and employers may rate-limit or lock accounts after
+repeated failed logins. You are responsible for checking the terms of the sites you connect and for
+how you use this software. Passwords are stored in your operating system's keychain, and cached
+application data stays on your machine, but you should still treat both as sensitive. The software
+comes with no warranty (see the GPL-3.0 license). Use it at your own risk.
+
 ## Progress
 
 | Platform | Status |
@@ -26,13 +48,19 @@ PRs are welcome, especially new platforms. Each platform is its own package unde
 that maps the site's candidate API into the shared models in `ats-core`; `CLAUDE.md` has the
 architecture notes and a worked list of Workday quirks to learn from.
 
+**Write tools will not be developed or merged, for safety reasons.** That means anything that
+applies, withdraws, edits a profile, uploads documents, or otherwise changes data on an employer's
+site. Only read-only additions are accepted (see [Read-only by design](#read-only-by-design)).
+
 Want a specific site supported? **Open an issue** (use the "Platform / site request" form) with the careers-site URL and what you'd like to
 check (application status, saved jobs, and so on). Requests help decide what gets built next.
 
 ## To do
 
+- [x] Password import from Apple Passwords CSV exports (Workday wired up).
+- [ ] Verify Chrome, 1Password and Bitwarden exports against real files.
 - [ ] Password import for each new platform: add its `Platform` adapter so `work-mcp import`
-      auto-populates its accounts from the same CSV (Workday is wired up).
+      auto-populates its accounts from the same CSV.
 - [ ] Import without a manual CSV step (direct from Apple Passwords / Chrome), if a safe route exists.
 - [ ] Opt-in live smoke test for login and application fetch.
 - [ ] Normalised application `stage` (submitted, in review, rejected, offer) across employers.
@@ -71,13 +99,31 @@ password prompt needs a TTY.
 ### Importing from a password manager
 
 ```sh
-uv run work-mcp import ~/Downloads/passwords.csv --dry-run   # preview, saves nothing
-uv run work-mcp import ~/Downloads/passwords.csv             # save, then offer to delete the CSV
+uv run work-mcp import ~/Downloads/Passwords.csv --dry-run   # preview, saves nothing
+uv run work-mcp import ~/Downloads/Passwords.csv             # pick platforms, save, offer to delete the CSV
 ```
 
-Export the CSV from Apple Passwords (File → Export All Passwords…) or Chrome (Settings → Passwords →
-Export). The file contains **every** password you own in plain text: only rows for supported
-platforms are read, nothing is printed, and the tool offers to delete the file afterwards.
+> **Your passwords never leave your machine.** The CSV is read locally and the logins go straight into
+> your macOS Keychain. Nothing is uploaded anywhere. The importer's only network request is a public
+> `robots.txt` fetch with no credentials, and later logins send your password to the employer's own
+> login page over HTTPS, as a browser would.
+
+| Password manager | Status | How to export |
+|---|---|---|
+| Apple Passwords | ✅ Implemented (checked against a real export) | File → Export All Passwords…; you can export every password at once |
+| Chrome | Should work, untested | Settings → Passwords → Export passwords |
+| 1Password, Bitwarden | Should work, untested | Export as CSV |
+
+The CSV contains **every** password you own in plain text, not just job-site logins. Only rows for
+supported platforms are read, nothing is printed, and the tool offers to delete the file when it's
+done. Delete it yourself if you skip that step.
+
+The import shows one checkbox row per platform, for example `Workday: 2 passwords`. Space toggles a
+platform, Enter confirms. Any `*.myworkdayjobs.com` URL counts as Workday. Password managers often
+save only the host (`https://acme.wd1.myworkdayjobs.com`), so after you confirm, the importer reads
+that host's public `robots.txt` to find the careers-site name. If a host lists none, that row is
+skipped and you can add it with a full careers URL.
+
 Rows are reported as `new`, `update`, `unchanged`, `conflict` (two different logins for one host) or
 `skipped` (for example a URL with no site name, or a row with no saved password).
 
