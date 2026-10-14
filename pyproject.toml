@@ -9,6 +9,7 @@ dependencies = []
 members = [
     "packages/ats-core",
     "packages/mcp-greenhouse",
+    "packages/mcp-oracle",
     "packages/mcp-workday",
     "packages/work-mcp",
 ]

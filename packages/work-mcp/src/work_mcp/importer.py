@@ -74,7 +74,7 @@ def _company_hint(name: str) -> str | None:
 
 
 def build_plan(path: Path, platform_ids: list[str] | None = None) -> ImportPlan:
-    platforms = [PLATFORMS[i] for i in (platform_ids or PLATFORMS)]
+    platforms = [PLATFORMS[i] for i in (platform_ids or PLATFORMS) if PLATFORMS[i].uses_password]
     rows = read_rows(path)
     items: list[PlannedItem] = []
     seen: dict[tuple[str, str], PlannedItem] = {}

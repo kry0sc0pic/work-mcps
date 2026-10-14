@@ -14,6 +14,7 @@ from typing import Annotated
 import questionary
 import typer
 from ats_core import Credential, CredentialStore, CredentialStoreError
+from ats_core.mailbox import load_mailbox
 from rich.console import Console
 from rich.table import Table
 
@@ -268,9 +269,17 @@ def add_manually(platforms: list[Platform]) -> None:
             console.print(f"[red]{e}[/red]")
             continue
         username = typer.prompt(f"Username/email for {ref.label}")
-        platform.store().save(
-            ref.key, Credential(username=username, password=read_password("Password: ")), meta=ref.meta
-        )
+        if platform.uses_password:
+            platform.store().save(
+                ref.key, Credential(username=username, password=read_password("Password: ")), meta=ref.meta
+            )
+        else:
+            platform.store().save_account(ref.key, username, ref.meta)
+            if load_mailbox() is None:
+                console.print(
+                    "[yellow]This site emails you a login code. Run `work-mcp mailbox` so the server "
+                    "can read it.[/yellow]"
+                )
         console.print(f"[green]Saved {ref.label}.[/green]")
 
 
@@ -368,6 +377,29 @@ def headless(
         return
     if not headless_setup(mode, yes=yes):
         raise typer.Exit(1)
+
+
+@app.command()
+def mailbox(
+    inbox: Annotated[str | None, typer.Option("--inbox", help="AgentMail inbox id (its address).")] = None,
+    remove: Annotated[bool, typer.Option("--remove", help="Forget the saved key and inbox.")] = False,
+) -> None:
+    """Save the AgentMail key and inbox used to read login codes that sites email to you."""
+    from ats_core.mailbox import MailboxError, check_mailbox, delete_mailbox, save_mailbox
+
+    if remove:
+        delete_mailbox()
+        console.print("Mailbox settings removed.")
+        return
+    inbox_id = inbox or typer.prompt("AgentMail inbox id (the inbox's email address)")
+    key = read_password("AgentMail API key (input hidden): ")
+    try:
+        check_mailbox(key, inbox_id)
+    except MailboxError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+    save_mailbox(key, inbox_id)
+    console.print("Saved: key in your keychain, inbox id in the config folder.")
 
 
 @app.command("register")

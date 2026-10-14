@@ -138,6 +138,26 @@ company name, host, site, username, date added, and how it was added (`csv-impor
 CSV imports use the entry's title (for example "Hooli") as the company name when it isn't just a
 URL; otherwise the name is guessed from the URL and you can fix it with `workday_set_company`.
 
+## Sites that log in with an emailed code (Oracle Recruiting Cloud)
+
+Some careers sites (Oracle Recruiting Cloud) have no password: you enter your email and the site sends
+a one-time code. `mcp-oracle` handles this by reading the code from an [AgentMail](https://agentmail.to)
+inbox through its Python SDK:
+
+1. Create an AgentMail inbox and set a forwarding rule in your own mailbox that sends the employer's
+   login emails to it.
+2. Run `uv run work-mcp mailbox`. It asks for the inbox address and API key, checks them, and stores the
+   key in your keychain (or set `AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX_ID`).
+3. Add the employer with `oracle_add_account` (any `.../sites/<SITE>/...` URL from the site plus your
+   email address), or through `work-mcp setup`.
+
+A refresh sends a code, waits for the forwarded email (up to two minutes), and logs in. Only emails that
+arrive after the login started are considered, and each email is used once. How an employer's email is
+recognised lives in `ats_core/mailbox.py` (built-in templates) or `<config>/email-templates.json`:
+`{"acme": {"contains": "acme.com", "pattern": "code: (\\d{6})"}}`. The tools are `oracle_add_account`,
+`oracle_list_accounts`, `oracle_set_company`, `oracle_delete_account`, `oracle_get_applications`,
+`oracle_get_delta` and `oracle_get_status_history`, which work like their `workday_*` counterparts.
+
 ## Tools
 
 | Tool | What it does |
@@ -168,6 +188,7 @@ Override with `WORKDAY_CONFIG_DIR` and `WORKDAY_CACHE_DIR`; change the cache lif
 | Platform | Status |
 |---|---|
 | Workday | ✅ Done: list applications, track status changes |
+| Oracle Recruiting Cloud | ✅ Done: email-code login, same tools as Workday |
 | Greenhouse | ⏳ Pending: `mcp-greenhouse` is a stub |
 | Eightfold | ⏳ Pending |
 | Dayforce | ⏳ Pending |
@@ -198,6 +219,7 @@ check (application status, saved jobs, and so on). Requests help decide what get
 | Package | Purpose |
 |---|---|
 | `mcp-workday` | Workday MCP server (done) |
+| `mcp-oracle` | Oracle Recruiting Cloud MCP server (done): sites that log in with an emailed code |
 | `mcp-greenhouse` | Greenhouse MCP server (stub: public job board listing only) |
 | `ats-core` | Shared models, credential store, snapshot diffing |
 | `work-mcp` | `work-mcp` CLI: setup wizard, CSV credential import, server registration |

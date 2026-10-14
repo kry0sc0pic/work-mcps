@@ -113,9 +113,17 @@ class CredentialStore:
     def save(self, account: str, cred: Credential, meta: dict[str, str] | None = None) -> None:
         with _keychain():
             keyring.set_password(SERVICE, self._key(account), cred.model_dump_json())
+        self._index_account(account, cred.username, meta)
+
+    def save_account(self, account: str, username: str, meta: dict[str, str] | None = None) -> None:
+        """Register an account that has no secret to keep (sites that log in with an emailed code).
+        Only the non-secret index is written; the keychain is not touched."""
+        self._index_account(account, username, meta)
+
+    def _index_account(self, account: str, username: str, meta: dict[str, str] | None) -> None:
         index = self._read_index()
         added_at = index.get(account, {}).get("added_at") or datetime.now(UTC).date().isoformat()
-        index[account] = {**(meta or {}), "username": cred.username, "added_at": added_at}
+        index[account] = {**(meta or {}), "username": username, "added_at": added_at}
         self._write_index(index)
 
     def _write_index(self, index: dict[str, dict[str, str]]) -> None:

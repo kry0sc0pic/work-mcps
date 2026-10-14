@@ -23,6 +23,10 @@ employer/recruiter tooling). Python 3.12, uv workspace.
   `clients.py` registers servers with AI clients: CLIs (`claude`/`codex`/`grok` `mcp add NAME -- CMD`,
   `openclaw mcp set NAME JSON`), a JSON edit (Cursor `mcpServers`) and a ruamel YAML edit (Hermes
   `mcp_servers`). Never overwrite an existing entry; write files atomically.
+- `packages/mcp-oracle`: Oracle Recruiting Cloud (HCM candidate experience).
+  Same shape as mcp-workday (`oracle_*` tools, own `oracle.db` cache) but email-code login: `auth.py`
+  requests a code, `ats_core.mailbox.wait_for_code` reads it from AgentMail, the access code goes in
+  headers. `accounts.py` finds the Oracle API host from the careers page.
 - `packages/mcp-greenhouse`: stub, not wired to the credential store.
 - `tools/capture.py`: platform-agnostic Playwright traffic recorder for reverse-engineering a new
   site (`uv run python tools/capture.py <login-url>`). Output goes to gitignored `.captures/`.
@@ -53,6 +57,19 @@ under `@mcp.tool()` on every tool.
 - Session expiry shows as a redirect, 401/403, or a non-JSON body. The client re-logs in once and
   retries.
 - SSO-only accounts are unsupported. `*.myworkdaysite.com` URLs are rejected.
+
+## Oracle Recruiting Cloud quirks (verified against a live tenant)
+- API host is `<pod>.fa.<region>.oraclecloud.com` (`/hcmRestApi/resources/latest/...`), found in the
+  careers page HTML on custom domains. Site number comes from the `/sites/<SITE>/` path (CX_1).
+- Login: POST `recruitingCEVerificationTokens` `{SiteNumber, Mode:"CSS_ACCESS", CaptchaToken:"", Control:"",
+  Email}` with header `ora-irc-rest-action: CSS_ACCESS:EMAIL` -> `ChallengeFlag:true` and a code is
+  emailed; POST again `{ShortCode, ChallengeFlag:true, Email}` -> `AccessCode`. Later requests send
+  `ora-irc-access-code` + `ora-irc-cx-userid` (a client-made UUID). No cookies; Akamai on the careers
+  domain does not guard the API host, so plain httpx works.
+- `recruitingCEJobApplications` (limit 499, `hasMore`) has the status text, `ActiveFlag`, `SubmissionId`.
+  `recruitingCEJobApplicationDrafts` answers 403 unless `ora-irc-rest-action: CE_JA_DRAFT` is sent.
+- A login is an email to the user: don't loop or test live without being asked. Each email's code is
+  consumed once (`mailbox._used`), and only mail newer than the login start counts.
 
 ## Application cache
 `ats_core/cache.py`: one SQLite file per platform (`workday.db`) holding every account's applications

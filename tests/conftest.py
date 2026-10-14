@@ -39,3 +39,10 @@ def fake_home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
     return home
+
+
+@pytest.fixture(autouse=True)
+def fresh_mailbox_state():
+    from ats_core import mailbox
+
+    mailbox._used.clear()

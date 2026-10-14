@@ -7,6 +7,8 @@ from urllib.parse import urlparse
 
 import httpx
 from ats_core import CredentialStore
+from mcp_oracle.accounts import OracleAccount, discover_api_host
+from mcp_oracle.config import OracleSettings
 from mcp_workday.accounts import WorkdayAccount
 from mcp_workday.config import WorkdaySettings
 
@@ -22,6 +24,7 @@ class Platform(Protocol):
     id: str
     label: str
     server_script: str  # console script that starts this platform's MCP server
+    uses_password: bool  # False for email-code logins: nothing to import from a password manager
 
     def owns(self, url: str) -> bool:
         """Does this URL belong to the platform, even if it lacks details needed to log in?"""
@@ -57,6 +60,7 @@ class Workday:
     id = "workday"
     label = "Workday"
     server_script = "mcp-workday"
+    uses_password = True
     _host = re.compile(r"(^|\.)myworkdayjobs\.com$")
 
     def owns(self, url: str) -> bool:
@@ -96,4 +100,33 @@ class Workday:
         return CredentialStore("workday", WorkdaySettings().config_dir)
 
 
-PLATFORMS: dict[str, Platform] = {p.id: p for p in (Workday(),)}
+class Oracle:
+    """Oracle Recruiting Cloud sites: email + emailed code, no password."""
+
+    id = "oracle"
+    label = "Oracle Recruiting Cloud"
+    server_script = "mcp-oracle"
+    uses_password = False
+
+    def owns(self, url: str) -> bool:
+        raw = url.strip()
+        u = urlparse(raw if "://" in raw else "https://" + raw)
+        return bool(re.search(r"/sites/[A-Za-z0-9_-]+", u.path))
+
+    def parse(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        # Custom domains need one public page fetch to find the Oracle server, so parse == discover.
+        acct = discover_api_host(url)
+        meta = acct.meta(source, company)
+        return AccountRef(key=acct.key, meta=meta, label=f"{meta['company']} ({acct.host})")
+
+    def key_for(self, url: str) -> str:
+        return OracleAccount.host_and_site(url)[0]
+
+    def discover(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        return self.parse(url, company, source)
+
+    def store(self) -> CredentialStore:
+        return CredentialStore("oracle", OracleSettings().config_dir)
+
+
+PLATFORMS: dict[str, Platform] = {p.id: p for p in (Workday(), Oracle())}

@@ -1,0 +1,23 @@
+[project]
+name = "mcp-oracle"
+version = "0.1.0"
+description = "MCP server for checking job application status on Oracle Recruiting Cloud careers sites (email-code login)"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+authors = [
+    { name = "Krishaay", email = "mail@krishaay.dev" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "ats-core",
+]
+
+[project.scripts]
+mcp-oracle = "mcp_oracle:main"
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+ats-core = { workspace = true }

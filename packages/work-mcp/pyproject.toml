@@ -10,6 +10,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "ats-core",
+    "mcp-oracle",
     "mcp-workday",
     "questionary>=2.1.1",
     "rich>=15.0.0",
@@ -26,4 +27,5 @@ build-backend = "uv_build"
 
 [tool.uv.sources]
 ats-core = { workspace = true }
+mcp-oracle = { workspace = true }
 mcp-workday = { workspace = true }

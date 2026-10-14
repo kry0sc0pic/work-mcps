@@ -129,7 +129,7 @@ def test_reimport_is_unchanged_then_update(tmp_path):
 def test_setup_wizard_manual_add(monkeypatch):
     monkeypatch.setattr(cli, "read_password", lambda prompt: "typed-pw")
     monkeypatch.setattr(cli.shutil, "which", lambda _: None)
-    answers = "2\nhttps://hooli.wd5.myworkdayjobs.com/en-US/HooliExternalCareerSite\nme@x.com\n\n"
+    answers = "\n2\nhttps://hooli.wd5.myworkdayjobs.com/en-US/HooliExternalCareerSite\nme@x.com\n\n"
     r = runner.invoke(cli.app, ["setup"], input=answers)
     assert r.exit_code == 0, r.output
     assert "typed-pw" not in r.output
@@ -140,7 +140,7 @@ def test_setup_wizard_manual_add(monkeypatch):
 def test_setup_wizard_csv_import(tmp_path, monkeypatch):
     monkeypatch.setattr(cli.shutil, "which", lambda _: None)
     f = write(tmp_path, APPLE)
-    r = runner.invoke(cli.app, ["setup"], input=f"1\n{f}\ny\ny\n")
+    r = runner.invoke(cli.app, ["setup"], input=f"\n1\n{f}\ny\ny\n")
     assert r.exit_code == 0, r.output
     assert "upw" not in r.output
     assert "umbrella.wd5.myworkdayjobs.com" in WD.store().list()
