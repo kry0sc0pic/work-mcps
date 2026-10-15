@@ -371,11 +371,13 @@ def test_add_tal_command_saves_password_login(monkeypatch):
 
 def test_add_avature_command_saves_password_login(monkeypatch):
     monkeypatch.setattr(cli, "read_password", lambda prompt: "Pw-1")
+    monkeypatch.setattr(cli, "chromium_missing", lambda: True)
     r = runner.invoke(
         cli.app,
         ["add-avature", "https://acme.avature.net/en_US/careers", "--email", "me@x.com", "--company", "Acme"],
     )
     assert r.exit_code == 0, r.output
+    assert "playwright install chromium" in r.output
     store = PLATFORMS["avature"].store()
     assert store.list()["acme.avature.net"]["portal"] == "/en_US/careers"
     cred = store.get("acme.avature.net")

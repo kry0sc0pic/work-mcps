@@ -254,6 +254,25 @@ def register(platforms: list[Platform], clients: list[Client]) -> None:
                 console.print(f"  {c.manual(server_spec(p))}")
 
 
+def chromium_missing() -> bool:
+    """Avature's bot check needs Playwright's Chromium, which is a separate download from the package."""
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            return not Path(p.chromium.executable_path).exists()
+    except Exception:  # a broken install is the same problem from the user's side
+        return True
+
+
+def browser_note(platform: Platform) -> None:
+    if platform.id == "avature" and chromium_missing():
+        console.print(
+            "[yellow]Avature portals sit behind a bot check that needs a browser. Run "
+            "`uv run playwright install chromium` once.[/yellow]"
+        )
+
+
 def add_manually(platforms: list[Platform]) -> None:
     console.print("Enter a careers-site URL for each account (blank to finish).")
     while url := typer.prompt("URL", default="", show_default=False).strip():
@@ -281,6 +300,7 @@ def add_manually(platforms: list[Platform]) -> None:
                     "can read it.[/yellow]"
                 )
         console.print(f"[green]Saved {ref.label}.[/green]")
+        browser_note(platform)
 
 
 def show_accounts(platforms: list[Platform]) -> None:
@@ -328,6 +348,9 @@ def setup(
 
     console.print()
     show_accounts(platforms)
+    for p in platforms:
+        if p.store().list():
+            browser_note(p)
     console.print()
     register(platforms, choose_clients(None, yes=yes))
     console.print(
@@ -424,7 +447,7 @@ def add_avature(
     email: Annotated[str | None, typer.Option("--email", help="The email you sign in with.")] = None,
     company: Annotated[str | None, typer.Option("--company", help="Display name.")] = None,
 ) -> None:
-    """Add a Avature employer portal (email + password login; the password is asked for, hidden)."""
+    """Add an Avature employer portal (email + password login; the password is asked for, hidden)."""
     platform = PLATFORMS["avature"]
     try:
         ref = platform.parse(url, company, source="cli")
@@ -435,6 +458,7 @@ def add_avature(
     password = read_password("Password (input hidden): ")
     platform.store().save(ref.key, Credential(username=username, password=password), meta=ref.meta)
     console.print(f"[green]Saved {ref.label}.[/green]")
+    browser_note(platform)
 
 
 @app.command("add-waas")
