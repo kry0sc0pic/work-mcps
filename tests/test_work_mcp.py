@@ -367,3 +367,19 @@ def test_add_tal_command_saves_password_login(monkeypatch):
     assert PLATFORMS["tal"].owns("https://acme.tal.net/vx/lang-en-GB/candidate")
     assert not PLATFORMS["tal"].owns("https://tal.net.evil.com/x")
     assert runner.invoke(cli.app, ["add-tal", "https://example.com/x", "--email", "a@b.c"]).exit_code == 1
+
+
+def test_add_avature_command_saves_password_login(monkeypatch):
+    monkeypatch.setattr(cli, "read_password", lambda prompt: "Pw-1")
+    r = runner.invoke(
+        cli.app,
+        ["add-avature", "https://acme.avature.net/en_US/careers", "--email", "me@x.com", "--company", "Acme"],
+    )
+    assert r.exit_code == 0, r.output
+    store = PLATFORMS["avature"].store()
+    assert store.list()["acme.avature.net"]["portal"] == "/en_US/careers"
+    cred = store.get("acme.avature.net")
+    assert cred and (cred.username, cred.password) == ("me@x.com", "Pw-1")
+    assert PLATFORMS["avature"].owns("https://acme.avature.net/en_US/careers")
+    assert not PLATFORMS["avature"].owns("https://avature.net.evil.com/x")
+    assert runner.invoke(cli.app, ["add-avature", "https://example.com/x", "--email", "a@b.c"]).exit_code == 1

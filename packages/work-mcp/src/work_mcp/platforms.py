@@ -7,6 +7,8 @@ from urllib.parse import urlparse
 
 import httpx
 from ats_core import CredentialStore
+from mcp_avature.accounts import AvatureAccount
+from mcp_avature.config import AvatureSettings
 from mcp_greenhouse.config import GreenhouseSettings
 from mcp_oracle.accounts import OracleAccount, discover_api_host
 from mcp_oracle.config import OracleSettings
@@ -231,4 +233,35 @@ class Tal:
         return CredentialStore("tal", TalSettings().config_dir)
 
 
-PLATFORMS: dict[str, Platform] = {p.id: p for p in (Workday(), Oracle(), Greenhouse(), Waas(), Tal())}
+class Avature:
+    """Avature candidate portals: one email + password account per `<employer>.avature.net` host."""
+
+    id = "avature"
+    label = "Avature"
+    server_script = "mcp-avature"
+    uses_password = True
+
+    def owns(self, url: str) -> bool:
+        raw = url.strip()
+        host = (urlparse(raw if "://" in raw else "https://" + raw).hostname or "").lower()
+        return host.endswith(".avature.net")
+
+    def parse(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        acct = AvatureAccount.from_url(url)
+        meta = acct.meta(source, company)
+        return AccountRef(key=acct.key, meta=meta, label=f"{meta['company']} ({acct.host})")
+
+    def key_for(self, url: str) -> str:
+        raw = url.strip()
+        return (urlparse(raw if "://" in raw else "https://" + raw).hostname or "").lower()
+
+    def discover(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        return self.parse(url, company, source)
+
+    def store(self) -> CredentialStore:
+        return CredentialStore("avature", AvatureSettings().config_dir)
+
+
+PLATFORMS: dict[str, Platform] = {
+    p.id: p for p in (Workday(), Oracle(), Greenhouse(), Waas(), Tal(), Avature())
+}

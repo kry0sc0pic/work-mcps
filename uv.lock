@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "ats-core",
+    "mcp-avature",
     "mcp-greenhouse",
     "mcp-oracle",
     "mcp-tal",
@@ -617,6 +618,21 @@ wheels = [
 cli = [
     { name = "python-dotenv" },
     { name = "typer" },
+]
+
+[[package]]
+name = "mcp-avature"
+version = "0.1.0"
+source = { editable = "packages/mcp-avature" }
+dependencies = [
+    { name = "ats-core" },
+    { name = "playwright" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "ats-core", editable = "packages/ats-core" },
+    { name = "playwright", specifier = ">=1.64.0" },
 ]
 
 [[package]]
@@ -1516,6 +1532,7 @@ version = "0.1.0"
 source = { editable = "packages/work-mcp" }
 dependencies = [
     { name = "ats-core" },
+    { name = "mcp-avature" },
     { name = "mcp-greenhouse" },
     { name = "mcp-oracle" },
     { name = "mcp-tal" },
@@ -1530,6 +1547,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "ats-core", editable = "packages/ats-core" },
+    { name = "mcp-avature", editable = "packages/mcp-avature" },
     { name = "mcp-greenhouse", editable = "packages/mcp-greenhouse" },
     { name = "mcp-oracle", editable = "packages/mcp-oracle" },
     { name = "mcp-tal", editable = "packages/mcp-tal" },

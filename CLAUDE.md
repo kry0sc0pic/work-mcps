@@ -34,6 +34,9 @@ employer/recruiter tooling). Python 3.12, uv workspace.
   account service; applications are founder conversations.
 - `packages/mcp-tal`: TAL.net (Oleeo) candidate portals, `tal_*` tools, own `tal.db`. Email + password per
   `<employer>.tal.net` host (credential key = host); server-rendered HTML, scraped in `parse.py`.
+- `packages/mcp-avature`: Avature candidate portals (`<employer>.avature.net`), `avature_*` tools, own `avature.db`.
+  Email + password per host; the portal path (`/en_US/careers`) is kept in the account meta. `waf.py` gets the
+  AWS WAF token with headless Playwright; everything else is httpx.
 - `tools/capture.py`: platform-agnostic Playwright traffic recorder for reverse-engineering a new
   site (`uv run python tools/capture.py <login-url>`). Output goes to gitignored `.captures/`.
 - `tests/`: one flat directory. `conftest.py` swaps in an in-memory keyring so tests never touch the
@@ -134,6 +137,17 @@ under `@mcp.tool()` on every tool.
   `{algorithm: SHA-512, challenge, salt, maxnumber, signature}`; find n with sha512(salt+n) == challenge, POST
   `altcha=base64(json{algorithm,challenge,number,salt,signature,took})` and `originalRequestToken` back to the
   same URL. Cloudflare doesn't block plain httpx here. The login form has a reCAPTCHA slot that stayed empty.
+
+## Avature quirks (login not yet verified live; the WAF step and page shapes come from a capture)
+- Fronted by AWS WAF: a bare request gets HTTP 202 with `x-amzn-waf-action: challenge`. A headless Chromium
+  that loads `<portal>/Login` earns an `aws-waf-token` cookie; replaying just that cookie, with the browser's
+  user agent, makes plain httpx get the real page. `client._solve_waf` does this on any challenge and
+  `_login` keeps that cookie when it clears the old session. Needs `playwright install chromium`.
+- Login: GET `<portal>/Login`, POST `username`, `password`, `login` to the same URL (no hidden fields); success
+  is a 302 to `<portal>/Profile`. A failed login re-renders the form. Signed in = a `.../Logout/` link.
+- Applications are the "Jobs I've applied to" table on `<portal>/Profile`: title (link `JobDetail?jobId=N`),
+  location, status, application date `MM/DD/YYYY`. Whether it paginates is unknown (4 rows seen). No detail
+  pages have been captured. Rejection wording is unseen (`_CLOSED` is a guess).
 
 ## Application cache
 `ats_core/cache.py`: one SQLite file per platform (`workday.db`) holding every account's applications

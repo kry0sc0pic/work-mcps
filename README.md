@@ -14,7 +14,7 @@ uv run work-mcp setup
 ```
 
 The wizard walks through:
-1. **Platforms:** which ATS platforms to connect (Workday, Oracle Recruiting Cloud, Greenhouse, Work at a Startup, TAL.net).
+1. **Platforms:** which ATS platforms to connect (Workday, Oracle Recruiting Cloud, Greenhouse, Work at a Startup, TAL.net, Avature).
 2. **Logins:** import them from a password-manager CSV (Apple Passwords, Chrome, 1Password,
    Bitwarden), type them in one at a time, or skip.
 3. **Registration:** pick which AI clients get the MCP servers (detected ones are pre-ticked; see
@@ -218,6 +218,21 @@ The portal shows no application date, and its list says only "Application Update
 the employer's own message. Which wording means a rejection is unverified. Environment variables use the
 `TAL_` prefix.
 
+## Avature
+
+`mcp-avature` covers candidate portals on `<employer>.avature.net`. Each portal is its own account with an email
+and password. Add one with `uv run work-mcp add-avature https://<employer>.avature.net/en_US/careers` (the
+password is asked for, hidden). The portals sit behind an AWS WAF bot check, so a headless Chromium
+(`uv run playwright install chromium`, once) earns the access token and normal HTTP does the rest.
+
+| Tool | What it does |
+| --- | --- |
+| `avature_get_applications` | Your applications across portals, with application dates (filters: `company`, `account`, `state`, `status`, `title`, `applied_after`; cached 30 minutes). |
+| `avature_get_delta` / `avature_get_status_history` | What changed since the last call, and the statuses seen over time. |
+| `avature_list_accounts`, `avature_set_company`, `avature_delete_credentials` | Account management. |
+
+Only "Qualifications Under Review" has been seen as a status. Environment variables use the `AVATURE_` prefix.
+
 ## Tools
 
 | Tool | What it does |
@@ -261,6 +276,7 @@ data only: a saved login session is reused until the site rejects it, and then t
 | Pinpoint (pinpointhq) | ❌ Not building |
 | Darwinbox | ❌ Not building |
 | TAL.net | ✅ Done: applications, emails received, program details. Rejection wording not yet seen |
+| Avature | ✅ Done: applications and dates. Other status wording not yet seen |
 | iCIMS | ⏳ Pending |
 | amazon.jobs | ⏳ Pending |
 | Google Careers | ⏳ Pending |
@@ -290,6 +306,7 @@ check (application status, saved jobs, and so on). Requests help decide what get
 | `mcp-greenhouse` | Greenhouse (MyGreenhouse) MCP server (done): applications, recommendations, job search |
 | `mcp-waas` | Work at a Startup (YC) MCP server (done): applications, conversations, job search |
 | `mcp-tal` | TAL.net (Oleeo) employer portals MCP server (done): applications, emails, program details |
+| `mcp-avature` | Avature candidate portals MCP server (done): applications |
 | `ats-core` | Shared models, credential store, snapshot diffing |
 | `work-mcp` | `work-mcp` CLI: setup wizard, CSV credential import, server registration |
 

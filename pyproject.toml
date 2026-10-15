@@ -11,6 +11,7 @@ members = [
     "packages/mcp-greenhouse",
     "packages/mcp-oracle",
     "packages/mcp-tal",
+    "packages/mcp-avature",
     "packages/mcp-waas",
     "packages/mcp-workday",
     "packages/work-mcp",
