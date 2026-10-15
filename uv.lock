@@ -11,6 +11,7 @@ members = [
     "ats-core",
     "mcp-greenhouse",
     "mcp-oracle",
+    "mcp-waas",
     "mcp-workday",
     "work-mcp",
     "work-mcps",
@@ -651,6 +652,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/9e/2d/7c251e34207f6c510
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ce/48/32583066b155bb5d4507e7887dc88ee23118cc4de8e2a12870c49719e2a8/mcp_types-2.3.0-py3-none-any.whl", hash = "sha256:968efdbdaedfab06adae40d378a34395f1090c5921d4be3c9cde283aaf76d91d", size = 69108, upload-time = "2026-10-02T22:06:54.099Z" },
 ]
+
+[[package]]
+name = "mcp-waas"
+version = "0.1.0"
+source = { editable = "packages/mcp-waas" }
+dependencies = [
+    { name = "ats-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "ats-core", editable = "packages/ats-core" }]
 
 [[package]]
 name = "mcp-workday"
@@ -1494,6 +1506,7 @@ dependencies = [
     { name = "ats-core" },
     { name = "mcp-greenhouse" },
     { name = "mcp-oracle" },
+    { name = "mcp-waas" },
     { name = "mcp-workday" },
     { name = "questionary" },
     { name = "rich" },
@@ -1506,6 +1519,7 @@ requires-dist = [
     { name = "ats-core", editable = "packages/ats-core" },
     { name = "mcp-greenhouse", editable = "packages/mcp-greenhouse" },
     { name = "mcp-oracle", editable = "packages/mcp-oracle" },
+    { name = "mcp-waas", editable = "packages/mcp-waas" },
     { name = "mcp-workday", editable = "packages/mcp-workday" },
     { name = "questionary", specifier = ">=2.1.1" },
     { name = "rich", specifier = ">=15.0.0" },

@@ -30,6 +30,8 @@ employer/recruiter tooling). Python 3.12, uv workspace.
 - `packages/mcp-greenhouse`: MyGreenhouse (my.greenhouse.io) candidate side, `greenhouse_*` tools, own
   `greenhouse.db`. One account keyed `my.greenhouse.io` (username = login email); email-code login like Oracle.
   Also keeps the old public-board `greenhouse_list_jobs`.
+- `packages/mcp-waas`: Work at a Startup (YC), `waas_*` tools, own `waas.db`. Email-code login via YC's
+  account service; applications are founder conversations.
 - `tools/capture.py`: platform-agnostic Playwright traffic recorder for reverse-engineering a new
   site (`uv run python tools/capture.py <login-url>`). Output goes to gitignored `.captures/`.
 - `tests/`: one flat directory. `conftest.py` swaps in an in-memory keyring so tests never touch the
@@ -93,6 +95,25 @@ under `@mcp.tool()` on every tool.
   `jobPosts` come from a partial reload (`x-inertia-partial-component: jobs`, `-data:
   page,moreResultsAvailable,jobPosts`). Search params seen: query, location, lat, lon, location_type,
   country_short_name, state_short_name, date_posted=past_five_days, page.
+
+## Work at a Startup quirks (verified live, including the login)
+- Package `mcp-waas`, tools `waas_*`, one account keyed `workatastartup.com`. Applying is a message to a
+  founder, so `GET /api/conversations` (JSON list of stubs, `state` "reviewing", `has_applied`,
+  `referenced_job_ids`, `messages`) is the application list; `GET /api/conversations/<slug>` is one thread.
+  Opening a thread makes the site POST `is_read`; we never do. Job titles come from `GET /jobs/<id>`
+  (`data-page` props: `job`, `company`, `appliedJobIds`, `savedJobIds`). No CSRF header is needed on GETs.
+- Login is YC's account service: GET `account.ycombinator.com/?continue=<site>` (CSRF in the `csrf-token`
+  meta), then JSON POSTs with `x-csrf-token`: `/start_sign_in`, `/login_link` (emails a 6-digit code),
+  `/verify_otp` `{otp_code}`; a redirect chain (`authenticate_token`, `sso-auth.workatastartup.com/set_auth`)
+  ends with cookies `_bf_session_key`, `_sso.key`, `XSRF-TOKEN` on www. `verify_otp`'s reply is unread;
+  `auth._token_url` handles a JSON token if one ever comes, and the redirects did the rest. Success is
+  `navBar.loggedIn` on `/companies`. www answers **406 to a bare `*/*` Accept**, so a browser-like `accept`
+  is a default header. httpx's INFO log carries the login token in URLs, so the server mutes it.
+- Search: the `/companies` page embeds `window.AlgoliaOpts = {app, key}` (a secured key, per session). POST
+  Algolia `queries` on index `WaaSPublicCompanyJob_created_at_desc_production` with `filters`
+  `(role:eng) AND (remote:yes) AND (job_type:"intern")`, `distinct=true`; hits carry `objectID` (job) and
+  `company_id`. `POST /companies/fetch {ids}` (with `x-csrf-token`) returns the companies, but their `jobs`
+  lists omit some jobs the search found, so those come from the job page.
 
 ## Application cache
 `ats_core/cache.py`: one SQLite file per platform (`workday.db`) holding every account's applications

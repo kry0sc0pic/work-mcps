@@ -10,6 +10,7 @@ from ats_core import CredentialStore
 from mcp_greenhouse.config import GreenhouseSettings
 from mcp_oracle.accounts import OracleAccount, discover_api_host
 from mcp_oracle.config import OracleSettings
+from mcp_waas.config import WaasSettings
 from mcp_workday.accounts import WorkdayAccount
 from mcp_workday.config import WorkdaySettings
 
@@ -164,4 +165,39 @@ class Greenhouse:
         return CredentialStore("greenhouse", GreenhouseSettings().config_dir)
 
 
-PLATFORMS: dict[str, Platform] = {p.id: p for p in (Workday(), Oracle(), Greenhouse())}
+class Waas:
+    """Work at a Startup (workatastartup.com): YC account email + emailed code."""
+
+    id = "waas"
+    label = "Work at a Startup"
+    server_script = "mcp-waas"
+    uses_password = False
+    HOST = "workatastartup.com"
+
+    def owns(self, url: str) -> bool:
+        raw = url.strip()
+        host = (urlparse(raw if "://" in raw else "https://" + raw).hostname or "").lower()
+        return host == self.HOST or host == "www." + self.HOST
+
+    def parse(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        if not self.owns(url):
+            raise ValueError(f"Not a Work at a Startup URL (expected https://www.{self.HOST}/...): {url!r}")
+        meta = {
+            "company": company or "Work at a Startup",
+            "auth": "email-code",
+            "mail_template": "ycombinator",
+            "source": source,
+        }
+        return AccountRef(key=self.HOST, meta=meta, label=f"Work at a Startup ({self.HOST})")
+
+    def key_for(self, url: str) -> str:
+        return self.HOST
+
+    def discover(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        return self.parse(url, company, source)
+
+    def store(self) -> CredentialStore:
+        return CredentialStore("waas", WaasSettings().config_dir)
+
+
+PLATFORMS: dict[str, Platform] = {p.id: p for p in (Workday(), Oracle(), Greenhouse(), Waas())}

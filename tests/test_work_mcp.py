@@ -341,3 +341,14 @@ def test_add_greenhouse_command_saves_passwordless_account():
     assert store.get("my.greenhouse.io") is None  # nothing in the keychain
     assert PLATFORMS["greenhouse"].owns("https://my.greenhouse.io/users/sign_in")
     assert not PLATFORMS["greenhouse"].owns("https://boards.greenhouse.io/acme")
+
+
+def test_add_waas_command_saves_passwordless_account():
+    r = runner.invoke(cli.app, ["add-waas", "me@x.com"])
+    assert r.exit_code == 0, r.output
+    store = PLATFORMS["waas"].store()
+    saved = store.list()["workatastartup.com"]
+    assert saved["username"] == "me@x.com" and saved["mail_template"] == "ycombinator"
+    assert store.get("workatastartup.com") is None  # nothing in the keychain
+    assert PLATFORMS["waas"].owns("https://www.workatastartup.com/companies?role=eng")
+    assert not PLATFORMS["waas"].owns("https://ycombinator.com/jobs")

@@ -394,6 +394,19 @@ def add_greenhouse(
         console.print("[yellow]Run `work-mcp mailbox` so the server can read that code.[/yellow]")
 
 
+@app.command("add-waas")
+def add_waas(
+    email: Annotated[str, typer.Argument(help="The email address your YC / Work at a Startup account uses.")],
+) -> None:
+    """Add your Work at a Startup account (YC email-code login, no password)."""
+    platform = PLATFORMS["waas"]
+    ref = platform.parse(f"https://www.{platform.HOST}", source="cli")  # type: ignore[attr-defined]
+    platform.store().save_account(ref.key, email, ref.meta)
+    console.print(f"[green]Saved {ref.label}.[/green] The first refresh emails a login code to {email}.")
+    if load_mailbox() is None:
+        console.print("[yellow]Run `work-mcp mailbox` so the server can read that code.[/yellow]")
+
+
 @app.command()
 def headless(
     mode: Annotated[str | None, typer.Option("--mode", help="encrypted or plaintext")] = None,

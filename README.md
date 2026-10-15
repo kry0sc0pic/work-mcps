@@ -14,7 +14,7 @@ uv run work-mcp setup
 ```
 
 The wizard walks through:
-1. **Platforms:** which ATS platforms to connect (Workday, Oracle Recruiting Cloud, Greenhouse).
+1. **Platforms:** which ATS platforms to connect (Workday, Oracle Recruiting Cloud, Greenhouse, Work at a Startup).
 2. **Logins:** import them from a password-manager CSV (Apple Passwords, Chrome, 1Password,
    Bitwarden), type them in one at a time, or skip.
 3. **Registration:** pick which AI clients get the MCP servers (detected ones are pre-ticked; see
@@ -179,6 +179,26 @@ Most employers share no progress, so an application is just "Active" or "Inactiv
 share updates, its latest stage or activity (for example "Applied") is the status. Environment variables
 use the `GREENHOUSE_` prefix (`GREENHOUSE_CACHE_DIR`, `GREENHOUSE_CACHE_TTL_MINUTES`).
 
+## Work at a Startup (YC)
+
+`mcp-waas` covers your own account at [workatastartup.com](https://www.workatastartup.com), Y Combinator's job
+board. There is no application form there: applying means messaging a founder, so each of your applications is
+a conversation with one company. The account is your YC login, which sends a 6-digit code to your email, read
+from the same AgentMail inbox (forward YC's emails there; the generic 6-digit template is used). Add it with
+`uv run work-mcp add-waas <email>` or `waas_add_account`.
+
+| Tool | What it does |
+|---|---|
+| `waas_get_applications` | Your applications (conversations) with the company, job title, status and send date (filters: `company`, `state`, `title`, `applied_after`; cached 30 minutes). |
+| `waas_get_delta` / `waas_get_status_history` | What changed since the last call (including a company replying), and the statuses seen over time. |
+| `waas_get_conversation` | The full thread with one company. Doesn't mark it as read. |
+| `waas_search_jobs` | Search jobs by text, `role` (`eng`), `job_type` (`intern`) and `remote` (`yes`). |
+| `waas_get_job` | One job's details and whether you applied. |
+| `waas_add_account`, `waas_list_accounts`, `waas_delete_account` | Account setup. |
+
+The only status seen is "Reviewing"; other states, and how a rejection looks, are unverified. The login was tested live. Environment
+variables use the `WAAS_` prefix.
+
 ## Tools
 
 | Tool | What it does |
@@ -199,13 +219,13 @@ use the `GREENHOUSE_` prefix (`GREENHOUSE_CACHE_DIR`, `GREENHOUSE_CACHE_TTL_MINU
 | Path | Contents |
 |---|---|
 | System keychain, service `work-mcps` | Workday passwords and the AgentMail API key |
-| `~/.config/work-mcps/` (`%APPDATA%\work-mcps` on Windows) | Non-secret account indexes (`workday-accounts.json`, `oracle-accounts.json`, `greenhouse-accounts.json`), `mailbox.json` (AgentMail inbox id), optional `email-templates.json`, `keyring.json` (headless choice) |
-| `~/.cache/work-mcps/<platform>/` for `workday`, `oracle`, `greenhouse` (`%LOCALAPPDATA%\work-mcps\<platform>` on Windows) | `<platform>.db` (SQLite cache of all accounts' applications plus status history), cached login sessions `session-*.json` (mode 600), delta snapshots |
+| `~/.config/work-mcps/` (`%APPDATA%\work-mcps` on Windows) | Non-secret account indexes (`workday-accounts.json`, `oracle-accounts.json`, `greenhouse-accounts.json`, `waas-accounts.json`), `mailbox.json` (AgentMail inbox id), optional `email-templates.json`, `keyring.json` (headless choice) |
+| `~/.cache/work-mcps/<platform>/` for `workday`, `oracle`, `greenhouse`, `waas` (`%LOCALAPPDATA%\work-mcps\<platform>` on Windows) | `<platform>.db` (SQLite cache of all accounts' applications plus status history), cached login sessions `session-*.json` (mode 600), delta snapshots |
 
 The cached sessions are as good as being signed in (Workday and Greenhouse cookies, Oracle's access code),
 so keep the cache folders out of backups and sync folders. Deleting an account removes its session file.
 
-Override with `<PLATFORM>_CONFIG_DIR` and `<PLATFORM>_CACHE_DIR` (`WORKDAY_`, `ORACLE_`, `GREENHOUSE_`); change
+Override with `<PLATFORM>_CONFIG_DIR` and `<PLATFORM>_CACHE_DIR` (`WORKDAY_`, `ORACLE_`, `GREENHOUSE_`, `WAAS_`); change
 the cache lifetime with `<PLATFORM>_CACHE_TTL_MINUTES` (default 30). That lifetime applies to the application
 data only: a saved login session is reused until the site rejects it, and then the server logs in again once.
 
@@ -216,6 +236,7 @@ data only: a saved login session is reused until the site rejects it, and then t
 | Workday | ✅ Done: list applications, track status changes |
 | Oracle Recruiting Cloud | ✅ Done: email-code login, same tools as Workday |
 | Greenhouse (MyGreenhouse) | ✅ Done: applications, recommendations, job search, mark inactive. Filters beyond keywords, place and date are not supported yet |
+| Work at a Startup (YC) | ✅ Done: applications (founder conversations), job search. Rejection states not yet seen |
 | Eightfold | ⏳ Pending |
 | Dayforce | ⏳ Pending |
 | Pinpoint (pinpointhq) | ❌ Not building |
@@ -248,6 +269,7 @@ check (application status, saved jobs, and so on). Requests help decide what get
 | `mcp-workday` | Workday MCP server (done) |
 | `mcp-oracle` | Oracle Recruiting Cloud MCP server (done): sites that log in with an emailed code |
 | `mcp-greenhouse` | Greenhouse (MyGreenhouse) MCP server (done): applications, recommendations, job search |
+| `mcp-waas` | Work at a Startup (YC) MCP server (done): applications, conversations, job search |
 | `ats-core` | Shared models, credential store, snapshot diffing |
 | `work-mcp` | `work-mcp` CLI: setup wizard, CSV credential import, server registration |
 
