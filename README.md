@@ -14,7 +14,7 @@ uv run work-mcp setup
 ```
 
 The wizard walks through:
-1. **Platforms:** which ATS platforms to connect (currently Workday).
+1. **Platforms:** which ATS platforms to connect (Workday, Oracle Recruiting Cloud, Greenhouse).
 2. **Logins:** import them from a password-manager CSV (Apple Passwords, Chrome, 1Password,
    Bitwarden), type them in one at a time, or skip.
 3. **Registration:** pick which AI clients get the MCP servers (detected ones are pre-ticked; see
@@ -138,9 +138,9 @@ company name, host, site, username, date added, and how it was added (`csv-impor
 CSV imports use the entry's title (for example "Hooli") as the company name when it isn't just a
 URL; otherwise the name is guessed from the URL and you can fix it with `workday_set_company`.
 
-## Sites that log in with an emailed code (Oracle Recruiting Cloud)
+## Sites that log in with an emailed code (Oracle Recruiting Cloud, Greenhouse)
 
-Some careers sites (Oracle Recruiting Cloud) have no password: you enter your email and the site sends
+Some sites (Oracle Recruiting Cloud careers sites, MyGreenhouse) have no password: you enter your email and the site sends
 a one-time code. `mcp-oracle` handles this by reading the code from an [AgentMail](https://agentmail.to)
 inbox through its Python SDK:
 
@@ -157,6 +157,27 @@ recognised lives in `ats_core/mailbox.py` (built-in templates) or `<config>/emai
 `{"acme": {"contains": "acme.com", "pattern": "code: (\\d{6})"}}`. The tools are `oracle_add_account`,
 `oracle_list_accounts`, `oracle_set_company`, `oracle_delete_account`, `oracle_get_applications`,
 `oracle_get_delta` and `oracle_get_status_history`, which work like their `workday_*` counterparts.
+
+## Greenhouse (MyGreenhouse)
+
+`mcp-greenhouse` covers your own account at my.greenhouse.io, which gathers applications to every employer
+that uses Greenhouse. It signs in with your email and an 8-digit code, read from the same AgentMail inbox
+(forward Greenhouse's emails there; the 8-digit pattern is built in). Add the account with
+`uv run work-mcp add-greenhouse <email>` or `greenhouse_add_account`. The session cookie is cached and lasts
+a long time, so the code is normally needed only once.
+
+| Tool | What it does |
+|---|---|
+| `greenhouse_get_applications` | Your applications across employers (filters: `company`, `state`, `title`, `applied_after`; cached 30 minutes). |
+| `greenhouse_get_delta` / `greenhouse_get_status_history` | What changed since the last call, and the statuses seen over time. |
+| `greenhouse_mark_inactive` | Move an application to the inactive list in your own MyGreenhouse tracker. The employer isn't told; the site has no undo. |
+| `greenhouse_get_recommendations` | The jobs MyGreenhouse recommends for you. |
+| `greenhouse_search_jobs` | Search all Greenhouse jobs by keywords, a place name (`location`), date and page. |
+| `greenhouse_add_account`, `greenhouse_list_accounts`, `greenhouse_delete_account`, `greenhouse_list_jobs` | Account setup, and a public job board listing with no login. |
+
+Most employers share no progress, so an application is just "Active" or "Inactive". Where an employer does
+share updates, its latest stage or activity (for example "Applied") is the status. Environment variables
+use the `GREENHOUSE_` prefix (`GREENHOUSE_CACHE_DIR`, `GREENHOUSE_CACHE_TTL_MINUTES`).
 
 ## Tools
 
@@ -189,7 +210,7 @@ Override with `WORKDAY_CONFIG_DIR` and `WORKDAY_CACHE_DIR`; change the cache lif
 |---|---|
 | Workday | ✅ Done: list applications, track status changes |
 | Oracle Recruiting Cloud | ✅ Done: email-code login, same tools as Workday |
-| Greenhouse | ⏳ Pending: `mcp-greenhouse` is a stub |
+| Greenhouse (MyGreenhouse) | ✅ Done: applications, recommendations, job search, mark inactive. Filters beyond keywords, place and date are not supported yet |
 | Eightfold | ⏳ Pending |
 | Dayforce | ⏳ Pending |
 | Pinpoint (pinpointhq) | ⏳ Pending |
@@ -220,7 +241,7 @@ check (application status, saved jobs, and so on). Requests help decide what get
 |---|---|
 | `mcp-workday` | Workday MCP server (done) |
 | `mcp-oracle` | Oracle Recruiting Cloud MCP server (done): sites that log in with an emailed code |
-| `mcp-greenhouse` | Greenhouse MCP server (stub: public job board listing only) |
+| `mcp-greenhouse` | Greenhouse (MyGreenhouse) MCP server (done): applications, recommendations, job search |
 | `ats-core` | Shared models, credential store, snapshot diffing |
 | `work-mcp` | `work-mcp` CLI: setup wizard, CSV credential import, server registration |
 
