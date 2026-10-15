@@ -12,6 +12,7 @@ dependencies = [
     "ats-core",
     "mcp-greenhouse",
     "mcp-oracle",
+    "mcp-tal",
     "mcp-waas",
     "mcp-workday",
     "questionary>=2.1.1",
@@ -30,6 +31,7 @@ build-backend = "uv_build"
 [tool.uv.sources]
 ats-core = { workspace = true }
 mcp-greenhouse = { workspace = true }
+mcp-tal = { workspace = true }
 mcp-waas = { workspace = true }
 mcp-oracle = { workspace = true }
 mcp-workday = { workspace = true }

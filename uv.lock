@@ -11,6 +11,7 @@ members = [
     "ats-core",
     "mcp-greenhouse",
     "mcp-oracle",
+    "mcp-tal",
     "mcp-waas",
     "mcp-workday",
     "work-mcp",
@@ -633,6 +634,17 @@ requires-dist = [{ name = "ats-core", editable = "packages/ats-core" }]
 name = "mcp-oracle"
 version = "0.1.0"
 source = { editable = "packages/mcp-oracle" }
+dependencies = [
+    { name = "ats-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "ats-core", editable = "packages/ats-core" }]
+
+[[package]]
+name = "mcp-tal"
+version = "0.1.0"
+source = { editable = "packages/mcp-tal" }
 dependencies = [
     { name = "ats-core" },
 ]
@@ -1506,6 +1518,7 @@ dependencies = [
     { name = "ats-core" },
     { name = "mcp-greenhouse" },
     { name = "mcp-oracle" },
+    { name = "mcp-tal" },
     { name = "mcp-waas" },
     { name = "mcp-workday" },
     { name = "questionary" },
@@ -1519,6 +1532,7 @@ requires-dist = [
     { name = "ats-core", editable = "packages/ats-core" },
     { name = "mcp-greenhouse", editable = "packages/mcp-greenhouse" },
     { name = "mcp-oracle", editable = "packages/mcp-oracle" },
+    { name = "mcp-tal", editable = "packages/mcp-tal" },
     { name = "mcp-waas", editable = "packages/mcp-waas" },
     { name = "mcp-workday", editable = "packages/mcp-workday" },
     { name = "questionary", specifier = ">=2.1.1" },

@@ -394,6 +394,27 @@ def add_greenhouse(
         console.print("[yellow]Run `work-mcp mailbox` so the server can read that code.[/yellow]")
 
 
+@app.command("add-tal")
+def add_tal(
+    url: Annotated[
+        str, typer.Argument(help="Any URL on the employer's portal, e.g. https://acme.tal.net/candidate")
+    ],
+    email: Annotated[str | None, typer.Option("--email", help="The email you sign in with.")] = None,
+    company: Annotated[str | None, typer.Option("--company", help="Display name.")] = None,
+) -> None:
+    """Add a TAL.net employer portal (email + password login; the password is asked for, hidden)."""
+    platform = PLATFORMS["tal"]
+    try:
+        ref = platform.parse(url, company, source="cli")
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+    username = email or typer.prompt(f"Email for {ref.label}")
+    password = read_password("Password (input hidden): ")
+    platform.store().save(ref.key, Credential(username=username, password=password), meta=ref.meta)
+    console.print(f"[green]Saved {ref.label}.[/green]")
+
+
 @app.command("add-waas")
 def add_waas(
     email: Annotated[str, typer.Argument(help="The email address your YC / Work at a Startup account uses.")],

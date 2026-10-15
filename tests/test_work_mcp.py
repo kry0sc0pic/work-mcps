@@ -352,3 +352,18 @@ def test_add_waas_command_saves_passwordless_account():
     assert store.get("workatastartup.com") is None  # nothing in the keychain
     assert PLATFORMS["waas"].owns("https://www.workatastartup.com/companies?role=eng")
     assert not PLATFORMS["waas"].owns("https://ycombinator.com/jobs")
+
+
+def test_add_tal_command_saves_password_login(monkeypatch):
+    monkeypatch.setattr(cli, "read_password", lambda prompt: "Pw-1")
+    r = runner.invoke(
+        cli.app, ["add-tal", "https://acme.tal.net/candidate", "--email", "me@x.com", "--company", "Acme"]
+    )
+    assert r.exit_code == 0, r.output
+    store = PLATFORMS["tal"].store()
+    assert store.list()["acme.tal.net"]["company"] == "Acme"
+    cred = store.get("acme.tal.net")
+    assert cred and (cred.username, cred.password) == ("me@x.com", "Pw-1")
+    assert PLATFORMS["tal"].owns("https://acme.tal.net/vx/lang-en-GB/candidate")
+    assert not PLATFORMS["tal"].owns("https://tal.net.evil.com/x")
+    assert runner.invoke(cli.app, ["add-tal", "https://example.com/x", "--email", "a@b.c"]).exit_code == 1

@@ -32,6 +32,8 @@ employer/recruiter tooling). Python 3.12, uv workspace.
   Also keeps the old public-board `greenhouse_list_jobs`.
 - `packages/mcp-waas`: Work at a Startup (YC), `waas_*` tools, own `waas.db`. Email-code login via YC's
   account service; applications are founder conversations.
+- `packages/mcp-tal`: TAL.net (Oleeo) candidate portals, `tal_*` tools, own `tal.db`. Email + password per
+  `<employer>.tal.net` host (credential key = host); server-rendered HTML, scraped in `parse.py`.
 - `tools/capture.py`: platform-agnostic Playwright traffic recorder for reverse-engineering a new
   site (`uv run python tools/capture.py <login-url>`). Output goes to gitignored `.captures/`.
 - `tests/`: one flat directory. `conftest.py` swaps in an in-memory keyring so tests never touch the
@@ -114,6 +116,23 @@ under `@mcp.tool()` on every tool.
   `(role:eng) AND (remote:yes) AND (job_type:"intern")`, `distinct=true`; hits carry `objectID` (job) and
   `company_id`. `POST /companies/fetch {ids}` (with `x-csrf-token`) returns the companies, but their `jobs`
   lists omit some jobs the search found, so those come from the job page.
+
+## TAL.net quirks (verified live with replayed session cookies; the scripted login is tested against a mock only)
+- Legacy server-rendered HTML, no JSON API. `/candidate/application` (table: title, status label, link ending
+  `/application/<id>`), `/candidate/application/<id>` (`app-status` heading, `app-status-desc` message),
+  `.../correspondence` (table `history-of-comms`: dd/mm/yyyy, subject, `.../email/<id>`), `.../email/<id>`,
+  `.../opportunity` (eform, read as plain text). The short `/candidate/...` URLs work with the cookies; the
+  browser's `/vx/lang-en-GB/mobile-0/brand-2/user-<n>/xf-<token>/candidate` form is not needed.
+- The list label is "Application Update" for everything, so status = label + the employer's first message
+  paragraph. No application date exists. Rejection wording is unseen (`_CLOSED` is a guess).
+- Login: GET `/candidate/login`, form `login_form` (hidden `formtt_uuid`, `__vxXSRF_Token`, `...`; its `action`
+  carries an `xf-` token), POST fields + `user`, `password`, `form_submit=Login`; success lands on a page with
+  `class="logout_button"` (the signed-out page only has a hidden `logout_form`). Cookies that matter:
+  `wcn_session` and `bypassCaptcha`. An expired session is a 200 signed-out page, so check the logout link.
+- Some visits get "Quick Check Needed" (altcha proof of work): GET `?oleeoProtectCaptcha=1` ->
+  `{algorithm: SHA-512, challenge, salt, maxnumber, signature}`; find n with sha512(salt+n) == challenge, POST
+  `altcha=base64(json{algorithm,challenge,number,salt,signature,took})` and `originalRequestToken` back to the
+  same URL. Cloudflare doesn't block plain httpx here. The login form has a reCAPTCHA slot that stayed empty.
 
 ## Application cache
 `ats_core/cache.py`: one SQLite file per platform (`workday.db`) holding every account's applications

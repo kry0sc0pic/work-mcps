@@ -14,7 +14,7 @@ uv run work-mcp setup
 ```
 
 The wizard walks through:
-1. **Platforms:** which ATS platforms to connect (Workday, Oracle Recruiting Cloud, Greenhouse, Work at a Startup).
+1. **Platforms:** which ATS platforms to connect (Workday, Oracle Recruiting Cloud, Greenhouse, Work at a Startup, TAL.net).
 2. **Logins:** import them from a password-manager CSV (Apple Passwords, Chrome, 1Password,
    Bitwarden), type them in one at a time, or skip.
 3. **Registration:** pick which AI clients get the MCP servers (detected ones are pre-ticked; see
@@ -199,6 +199,25 @@ from the same AgentMail inbox (forward YC's emails there; the generic 6-digit te
 The only status seen is "Reviewing"; other states, and how a rejection looks, are unverified. The login was tested live. Environment
 variables use the `WAAS_` prefix.
 
+## TAL.net
+
+`mcp-tal` covers employer portals on `<employer>.tal.net` (Oleeo), common for graduate and campus recruiting.
+Each portal is its own account with an email and password. Add one with
+`uv run work-mcp add-tal https://<employer>.tal.net/candidate` (the password is asked for, hidden), or import
+the logins from a password-manager CSV.
+
+| Tool | What it does |
+|---|---|
+| `tal_get_applications` | Your applications across portals (filters: `company`, `account`, `state`, `status`, `title`; cached 30 minutes). |
+| `tal_get_delta` / `tal_get_status_history` | What changed since the last call, and the statuses seen over time. |
+| `tal_get_application` | One application: the status message, the emails the employer sent, the program description. |
+| `tal_get_message` | One email the employer sent. |
+| `tal_list_accounts`, `tal_set_company`, `tal_delete_credentials` | Account management. |
+
+The portal shows no application date, and its list says only "Application Update", so the status also carries
+the employer's own message. Which wording means a rejection is unverified. Environment variables use the
+`TAL_` prefix.
+
 ## Tools
 
 | Tool | What it does |
@@ -241,7 +260,7 @@ data only: a saved login session is reused until the site rejects it, and then t
 | Dayforce | ⏳ Pending |
 | Pinpoint (pinpointhq) | ❌ Not building |
 | Darwinbox | ❌ Not building |
-| TAL.net | ⏳ Pending |
+| TAL.net | ✅ Done: applications, emails received, program details. Rejection wording not yet seen |
 | iCIMS | ⏳ Pending |
 | amazon.jobs | ⏳ Pending |
 | Google Careers | ⏳ Pending |
@@ -270,6 +289,7 @@ check (application status, saved jobs, and so on). Requests help decide what get
 | `mcp-oracle` | Oracle Recruiting Cloud MCP server (done): sites that log in with an emailed code |
 | `mcp-greenhouse` | Greenhouse (MyGreenhouse) MCP server (done): applications, recommendations, job search |
 | `mcp-waas` | Work at a Startup (YC) MCP server (done): applications, conversations, job search |
+| `mcp-tal` | TAL.net (Oleeo) employer portals MCP server (done): applications, emails, program details |
 | `ats-core` | Shared models, credential store, snapshot diffing |
 | `work-mcp` | `work-mcp` CLI: setup wizard, CSV credential import, server registration |
 
