@@ -148,8 +148,8 @@ inbox through its Python SDK:
    login emails to it.
 2. Run `uv run work-mcp mailbox`. It asks for the inbox address and API key, checks them, and stores the
    key in your keychain (or set `AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX_ID`).
-3. Add the employer with `oracle_add_account` (any `.../sites/<SITE>/...` URL from the site plus your
-   email address), or through `work-mcp setup`.
+3. Add the employer with `uv run work-mcp add-oracle <url> <email>` (any `.../sites/<SITE>/...` URL from
+   the site), `oracle_add_account`, or through `work-mcp setup`.
 
 A refresh sends a code, waits for the forwarded email (up to two minutes), and logs in. Only emails that
 arrive after the login started are considered, and each email is used once. How an employer's email is
@@ -198,11 +198,16 @@ use the `GREENHOUSE_` prefix (`GREENHOUSE_CACHE_DIR`, `GREENHOUSE_CACHE_TTL_MINU
 
 | Path | Contents |
 |---|---|
-| System keychain, service `work-mcps` | Passwords |
-| `~/.config/work-mcps/` | Non-secret account index (`%APPDATA%\work-mcps` on Windows) |
-| `~/.cache/work-mcps/workday/` (`%LOCALAPPDATA%\work-mcps\workday` on Windows) | `workday.db` (SQLite cache of all employers' applications plus status history), cached login sessions (mode 600), delta snapshots |
+| System keychain, service `work-mcps` | Workday passwords and the AgentMail API key |
+| `~/.config/work-mcps/` (`%APPDATA%\work-mcps` on Windows) | Non-secret account indexes (`workday-accounts.json`, `oracle-accounts.json`, `greenhouse-accounts.json`), `mailbox.json` (AgentMail inbox id), optional `email-templates.json`, `keyring.json` (headless choice) |
+| `~/.cache/work-mcps/<platform>/` for `workday`, `oracle`, `greenhouse` (`%LOCALAPPDATA%\work-mcps\<platform>` on Windows) | `<platform>.db` (SQLite cache of all accounts' applications plus status history), cached login sessions `session-*.json` (mode 600), delta snapshots |
 
-Override with `WORKDAY_CONFIG_DIR` and `WORKDAY_CACHE_DIR`; change the cache lifetime with `WORKDAY_CACHE_TTL_MINUTES` (default 30).
+The cached sessions are as good as being signed in (Workday and Greenhouse cookies, Oracle's access code),
+so keep the cache folders out of backups and sync folders. Deleting an account removes its session file.
+
+Override with `<PLATFORM>_CONFIG_DIR` and `<PLATFORM>_CACHE_DIR` (`WORKDAY_`, `ORACLE_`, `GREENHOUSE_`); change
+the cache lifetime with `<PLATFORM>_CACHE_TTL_MINUTES` (default 30). That lifetime applies to the application
+data only: a saved login session is reused until the site rejects it, and then the server logs in again once.
 
 ## Progress
 
@@ -228,7 +233,8 @@ PRs are welcome, especially new platforms. Each platform is its own package unde
 that maps the site's candidate API into the shared models in `ats-core`; `CLAUDE.md` has the
 architecture notes and a worked list of Workday quirks to learn from.
 
-**Write tools will not be developed or merged, for safety reasons.** That means anything that
+**Write tools will not be developed or merged, for safety reasons** (the one exception is MyGreenhouse's
+own-tracker `greenhouse_mark_inactive`). That means anything that
 applies, withdraws, edits a profile, uploads documents, or otherwise changes data on an employer's
 site. Only read-only additions are accepted (see [Read-only by design](#read-only-by-design)).
 
@@ -270,6 +276,8 @@ includes session tokens **and the password you typed**. Delete it when you're do
 
 The MCP tools only **read** from employer portals. They log in and fetch your application status;
 they can't apply, withdraw, edit a profile, upload files, or change anything on an employer's side.
+The single exception is `greenhouse_mark_inactive`, which only moves an application to the inactive list of
+your own MyGreenhouse tracker (the employer is never told), so an agent can tidy it after a rejection.
 That's deliberate: these servers hold your real logins and act on your behalf, so keeping them
 read-only limits the damage a bug, a bad prompt, or a misbehaving agent can do. (The tools that
 manage your local setup, such as adding or deleting a saved account, only touch files on your
