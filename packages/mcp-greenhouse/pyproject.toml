@@ -1,7 +1,7 @@
 [project]
 name = "mcp-greenhouse"
 version = "0.1.0"
-description = "MCP server for Greenhouse public job boards (stub)"
+description = "MCP server for your MyGreenhouse job applications (email-code login)"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 authors = [

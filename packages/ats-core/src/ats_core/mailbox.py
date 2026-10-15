@@ -37,7 +37,9 @@ class EmailTemplate(BaseModel):
 # Built-in templates, keyed by a lowercase company id. Add or override your own in
 # `<config>/email-templates.json` (same shape: {"acme": {"contains": "acme", "pattern": "..."}}).
 # Fill these in from a real email; until then a company gets the generic 6-digit template.
-BUILTIN_TEMPLATES: dict[str, EmailTemplate] = {}
+BUILTIN_TEMPLATES: dict[str, EmailTemplate] = {
+    "greenhouse": EmailTemplate(contains="greenhouse", pattern=r"(?<!\d)(\d{8})(?!\d)"),  # 8-digit code
+}
 
 
 _used: set[str] = set()  # messages whose code was returned; a later login must wait for a new email

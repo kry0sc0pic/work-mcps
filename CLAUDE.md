@@ -27,7 +27,9 @@ employer/recruiter tooling). Python 3.12, uv workspace.
   Same shape as mcp-workday (`oracle_*` tools, own `oracle.db` cache) but email-code login: `auth.py`
   requests a code, `ats_core.mailbox.wait_for_code` reads it from AgentMail, the access code goes in
   headers. `accounts.py` finds the Oracle API host from the careers page.
-- `packages/mcp-greenhouse`: stub, not wired to the credential store.
+- `packages/mcp-greenhouse`: MyGreenhouse (my.greenhouse.io) candidate side, `greenhouse_*` tools, own
+  `greenhouse.db`. One account keyed `my.greenhouse.io` (username = login email); email-code login like Oracle.
+  Also keeps the old public-board `greenhouse_list_jobs`.
 - `tools/capture.py`: platform-agnostic Playwright traffic recorder for reverse-engineering a new
   site (`uv run python tools/capture.py <login-url>`). Output goes to gitignored `.captures/`.
 - `tests/`: one flat directory. `conftest.py` swaps in an in-memory keyring so tests never touch the
@@ -71,6 +73,27 @@ under `@mcp.tool()` on every tool.
 - A login is an email to the user: don't loop or test live without being asked. Each email's code is
   consumed once (`mailbox._used`), and only mail newer than the login start counts.
 
+## MyGreenhouse quirks (from a captured browser session; the login code path is not yet verified live)
+- Rails + Inertia.js. Login: GET `/users/sign_in` (cookie `MYGREENHOUSE-XSRF-TOKEN`, page version in the
+  `data-page` JSON), POST `/users/sign_in` `{email, job_board:null, device_type}` emails an **8-digit** code,
+  POST `/users/submit_code` `{code, email, time_zone, device_type}`. POSTs send `x-inertia: true`,
+  `x-inertia-version`, `x-requested-with: XMLHttpRequest` and `x-csrf-token` = the XSRF cookie value.
+  Success is assumed when the reply's `props.currentUserId` is set. The session cookie is `_session_id`.
+- `GET /applications.json?page=N&active_only=true` (and `inactive_only=true`): `{active|inactive:
+  {applications, total_pages, count}}`. Each application carries its own `company_name`, which is why the
+  cache has a per-row `company` column.
+- Status depends on the employer. `sharingStatus: false` (most): only `inactive` true/false, so status is
+  "Active"/"Inactive". `sharingStatus: true`: the detail view (`GET /applications/<id>` with `x-inertia`
+  and partial headers `selected_application_id,selected_application`) has `activityHistory`
+  (`[{date, type:"applied"}]`) and `stages`; we show the latest. `stages` was empty and only `applied` was
+  ever seen, so how a rejection or stage is written is unverified (`client.status_text` guesses `name`/`type`).
+- `PATCH /applications/<id>/mark_inactive` (no body, `x-csrf-token` = XSRF cookie, accept json) answers
+  `{"success":true}` and moves it to the inactive list. See the read-only policy exception below.
+- `GET /recommendations` (accept json) is a plain list; `GET /jobs/search?...` is Inertia and the deferred
+  `jobPosts` come from a partial reload (`x-inertia-partial-component: jobs`, `-data:
+  page,moreResultsAvailable,jobPosts`). Search params seen: query, location, lat, lon, location_type,
+  country_short_name, state_short_name, date_posted=past_five_days, page.
+
 ## Application cache
 `ats_core/cache.py`: one SQLite file per platform (`workday.db`) holding every account's applications
 plus a `status_history` table (a row whenever a status is first seen or changes). Tools read it
@@ -110,6 +133,9 @@ Tools that change data on an employer's site (apply, withdraw, edit profile, upl
 and will not be merged, for safety: the servers hold real logins. Platform tools may log in and issue
 GET requests only. Local-setup tools (add/delete/rename an account) only touch the user's own files and
 keychain. If a request would need a write call to an employer, say no and point to this policy.
+One exception: `greenhouse_mark_inactive` only moves an application to the inactive list of the user's own
+MyGreenhouse tracker. The employer is never told, so it is allowed. It exists so an agent that reads a
+rejection email can tidy the tracker.
 
 ## Security rules
 - Never print, log or commit passwords or session cookies. `.captures/` holds plaintext passwords

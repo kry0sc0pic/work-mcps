@@ -17,7 +17,7 @@ _SCHEMA = """
 create table if not exists applications (
     account text not null, id text not null, job_id text, title text, status text, state text,
     applied_on text, can_withdraw integer, is_draft integer, has_pending_tasks integer,
-    first_seen text, last_seen text,
+    first_seen text, last_seen text, company text,
     primary key (account, id)
 );
 create table if not exists status_history (
@@ -54,6 +54,8 @@ class ApplicationCache:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(self.path)
         conn.executescript(_SCHEMA)
+        if "company" not in {r[1] for r in conn.execute("pragma table_info(applications)")}:
+            conn.execute("alter table applications add column company text")  # caches from before it existed
         return conn
 
     def synced_at(self, account: str) -> datetime | None:
@@ -79,12 +81,14 @@ class ApplicationCache:
                         (account, a.id, a.title, a.status, stamp),
                     )
                 conn.execute(
-                    "insert or replace into applications values (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "insert or replace into applications (account, id, job_id, title, status, state,"
+                    " applied_on, can_withdraw, is_draft, has_pending_tasks, first_seen, last_seen, company)"
+                    " values (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         account, a.id, a.job_id, a.title, a.status, a.state,
                         a.applied_on.isoformat() if a.applied_on else None,
                         int(a.can_withdraw), int(a.is_draft), int(a.has_pending_tasks),
-                        prev[1] if prev else stamp, stamp,
+                        prev[1] if prev else stamp, stamp, a.company,
                     ),
                 )  # fmt: skip
             keep = [a.id for a in apps]
@@ -105,7 +109,7 @@ class ApplicationCache:
         return [
             Application(
                 id=r["id"], account=r["account"], job_id=r["job_id"] or "", title=r["title"] or "",
-                status=r["status"] or "", state=r["state"],
+                status=r["status"] or "", state=r["state"], company=r["company"] or "",
                 applied_on=date.fromisoformat(r["applied_on"]) if r["applied_on"] else None,
                 can_withdraw=bool(r["can_withdraw"]), is_draft=bool(r["is_draft"]),
                 has_pending_tasks=bool(r["has_pending_tasks"]),

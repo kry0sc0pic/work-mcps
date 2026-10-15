@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 import httpx
 from ats_core import CredentialStore
+from mcp_greenhouse.config import GreenhouseSettings
 from mcp_oracle.accounts import OracleAccount, discover_api_host
 from mcp_oracle.config import OracleSettings
 from mcp_workday.accounts import WorkdayAccount
@@ -129,4 +130,38 @@ class Oracle:
         return CredentialStore("oracle", OracleSettings().config_dir)
 
 
-PLATFORMS: dict[str, Platform] = {p.id: p for p in (Workday(), Oracle())}
+class Greenhouse:
+    """MyGreenhouse (my.greenhouse.io): email + emailed code, one account for all employers."""
+
+    id = "greenhouse"
+    label = "Greenhouse"
+    server_script = "mcp-greenhouse"
+    uses_password = False
+    HOST = "my.greenhouse.io"
+
+    def owns(self, url: str) -> bool:
+        raw = url.strip()
+        return (urlparse(raw if "://" in raw else "https://" + raw).hostname or "").lower() == self.HOST
+
+    def parse(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        if not self.owns(url):
+            raise ValueError(f"Not a MyGreenhouse URL (expected https://{self.HOST}/...): {url!r}")
+        meta = {
+            "company": company or "Greenhouse",
+            "auth": "email-code",
+            "mail_template": "greenhouse",
+            "source": source,
+        }
+        return AccountRef(key=self.HOST, meta=meta, label=f"Greenhouse ({self.HOST})")
+
+    def key_for(self, url: str) -> str:
+        return self.HOST
+
+    def discover(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        return self.parse(url, company, source)
+
+    def store(self) -> CredentialStore:
+        return CredentialStore("greenhouse", GreenhouseSettings().config_dir)
+
+
+PLATFORMS: dict[str, Platform] = {p.id: p for p in (Workday(), Oracle(), Greenhouse())}

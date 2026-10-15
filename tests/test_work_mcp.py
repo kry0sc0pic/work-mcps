@@ -330,3 +330,14 @@ def test_add_oracle_command_saves_passwordless_account(monkeypatch):
 
     bad = runner.invoke(cli.app, ["add-oracle", "https://careers.acme.com/jobs", "me@x.com"])
     assert bad.exit_code == 1 and "/sites/" in bad.output
+
+
+def test_add_greenhouse_command_saves_passwordless_account():
+    r = runner.invoke(cli.app, ["add-greenhouse", "me@x.com"])
+    assert r.exit_code == 0, r.output
+    store = PLATFORMS["greenhouse"].store()
+    saved = store.list()["my.greenhouse.io"]
+    assert saved["username"] == "me@x.com" and saved["mail_template"] == "greenhouse"
+    assert store.get("my.greenhouse.io") is None  # nothing in the keychain
+    assert PLATFORMS["greenhouse"].owns("https://my.greenhouse.io/users/sign_in")
+    assert not PLATFORMS["greenhouse"].owns("https://boards.greenhouse.io/acme")

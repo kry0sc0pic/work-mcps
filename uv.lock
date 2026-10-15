@@ -1492,6 +1492,7 @@ version = "0.1.0"
 source = { editable = "packages/work-mcp" }
 dependencies = [
     { name = "ats-core" },
+    { name = "mcp-greenhouse" },
     { name = "mcp-oracle" },
     { name = "mcp-workday" },
     { name = "questionary" },
@@ -1503,6 +1504,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "ats-core", editable = "packages/ats-core" },
+    { name = "mcp-greenhouse", editable = "packages/mcp-greenhouse" },
     { name = "mcp-oracle", editable = "packages/mcp-oracle" },
     { name = "mcp-workday", editable = "packages/mcp-workday" },
     { name = "questionary", specifier = ">=2.1.1" },

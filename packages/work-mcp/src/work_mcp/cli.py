@@ -381,6 +381,19 @@ def add_oracle(
         console.print("[yellow]Run `work-mcp mailbox` so the server can read that code.[/yellow]")
 
 
+@app.command("add-greenhouse")
+def add_greenhouse(
+    email: Annotated[str, typer.Argument(help="The email address your MyGreenhouse account uses.")],
+) -> None:
+    """Add your MyGreenhouse account (email-code login, no password)."""
+    platform = PLATFORMS["greenhouse"]
+    ref = platform.parse(f"https://{platform.HOST}", source="cli")  # type: ignore[attr-defined]
+    platform.store().save_account(ref.key, email, ref.meta)
+    console.print(f"[green]Saved {ref.label}.[/green] The first refresh emails a login code to {email}.")
+    if load_mailbox() is None:
+        console.print("[yellow]Run `work-mcp mailbox` so the server can read that code.[/yellow]")
+
+
 @app.command()
 def headless(
     mode: Annotated[str | None, typer.Option("--mode", help="encrypted or plaintext")] = None,
