@@ -218,8 +218,8 @@ data only: a saved login session is reused until the site rejects it, and then t
 | Greenhouse (MyGreenhouse) | ✅ Done: applications, recommendations, job search, mark inactive. Filters beyond keywords, place and date are not supported yet |
 | Eightfold | ⏳ Pending |
 | Dayforce | ⏳ Pending |
-| Pinpoint (pinpointhq) | ⏳ Pending |
-| Darwinbox | ⏳ Pending |
+| Pinpoint (pinpointhq) | ❌ Not building |
+| Darwinbox | ❌ Not building |
 | TAL.net | ⏳ Pending |
 | iCIMS | ⏳ Pending |
 | amazon.jobs | ⏳ Pending |
