@@ -20,6 +20,9 @@ The wizard walks through:
 3. **Registration:** pick which AI clients get the MCP servers (detected ones are pre-ticked; see
    [Supported AI clients](#supported-ai-clients)). Anything it can't do itself, it prints as a command to run.
 
+Avature portals also need a one-time `uv run playwright install chromium` (they sit behind a bot check that a
+headless browser passes).
+
 Passwords go to your system keychain. Only the host, site name and username are written to
 `~/.config/work-mcps/workday-accounts.json`. Run the wizard in a normal terminal, since the hidden
 password prompt needs a TTY.
@@ -253,13 +256,13 @@ Only "Qualifications Under Review" has been seen as a status. Environment variab
 | Path | Contents |
 |---|---|
 | System keychain, service `work-mcps` | Workday passwords and the AgentMail API key |
-| `~/.config/work-mcps/` (`%APPDATA%\work-mcps` on Windows) | Non-secret account indexes (`workday-accounts.json`, `oracle-accounts.json`, `greenhouse-accounts.json`, `waas-accounts.json`), `mailbox.json` (AgentMail inbox id), optional `email-templates.json`, `keyring.json` (headless choice) |
-| `~/.cache/work-mcps/<platform>/` for `workday`, `oracle`, `greenhouse`, `waas` (`%LOCALAPPDATA%\work-mcps\<platform>` on Windows) | `<platform>.db` (SQLite cache of all accounts' applications plus status history), cached login sessions `session-*.json` (mode 600), delta snapshots |
+| `~/.config/work-mcps/` (`%APPDATA%\work-mcps` on Windows) | Non-secret account indexes (`workday-accounts.json`, `oracle-accounts.json`, `greenhouse-accounts.json`, `waas-accounts.json`, `tal-accounts.json`, `avature-accounts.json`), `mailbox.json` (AgentMail inbox id), optional `email-templates.json`, `keyring.json` (headless choice) |
+| `~/.cache/work-mcps/<platform>/` for `workday`, `oracle`, `greenhouse`, `waas`, `tal`, `avature` (`%LOCALAPPDATA%\work-mcps\<platform>` on Windows) | `<platform>.db` (SQLite cache of all accounts' applications plus status history), cached login sessions `session-*.json` (mode 600), delta snapshots |
 
 The cached sessions are as good as being signed in (Workday and Greenhouse cookies, Oracle's access code),
 so keep the cache folders out of backups and sync folders. Deleting an account removes its session file.
 
-Override with `<PLATFORM>_CONFIG_DIR` and `<PLATFORM>_CACHE_DIR` (`WORKDAY_`, `ORACLE_`, `GREENHOUSE_`, `WAAS_`); change
+Override with `<PLATFORM>_CONFIG_DIR` and `<PLATFORM>_CACHE_DIR` (`WORKDAY_`, `ORACLE_`, `GREENHOUSE_`, `WAAS_`, `TAL_`, `AVATURE_`); change
 the cache lifetime with `<PLATFORM>_CACHE_TTL_MINUTES` (default 30). That lifetime applies to the application
 data only: a saved login session is reused until the site rejects it, and then the server logs in again once.
 
