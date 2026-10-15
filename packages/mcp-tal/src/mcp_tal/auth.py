@@ -4,8 +4,10 @@ import asyncio
 import base64
 import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from ats_core import Credential
@@ -75,8 +77,16 @@ async def pass_check(http: httpx.AsyncClient, page: httpx.Response) -> httpx.Res
     return page
 
 
-async def login(http: httpx.AsyncClient, account: TalAccount, cred: Credential) -> dict[str, str]:
-    """Log in on `http` (which keeps cookies and follows redirects) and return the host's cookies."""
+@dataclass
+class Session:
+    cookies: dict[str, str]
+    # The `/vx/<lang>/<brand>/user-<n>/xf-<token>` path the login redirect lands on. After a scripted login
+    # only URLs under it count as signed in; the bare `/candidate/...` ones show the signed-out page.
+    base: str
+
+
+async def login(http: httpx.AsyncClient, account: TalAccount, cred: Credential) -> Session:
+    """Log in on `http` (which keeps cookies and follows redirects) and return the session."""
     page = await pass_check(http, await http.get(LOGIN_PATH))
     action, fields = hidden_form(page.text, "login_form")
     if page.status_code != 200 or not action:
@@ -92,22 +102,23 @@ async def login(http: httpx.AsyncClient, account: TalAccount, cred: Credential) 
             f"TAL.net login failed for {account.key}. Check the saved credentials "
             "(the password is case sensitive; SSO-only accounts can't use password login)."
         )
-    return cookies
+    return Session(cookies, urlsplit(str(resp.url)).path.split("/candidate")[0])
 
 
 def cookies_for(http: httpx.AsyncClient, host: str) -> dict[str, str]:
     return {c.name: c.value or "" for c in http.cookies.jar if host.endswith((c.domain or "").lstrip("."))}
 
 
-def load_cached_session(path: Path) -> dict[str, str] | None:
+def load_cached_session(path: Path) -> Session | None:
     try:
-        cookies = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        cookies, base = raw["cookies"], raw["base"]
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, TypeError):
         return None
-    return cookies if all(n in cookies for n in SESSION_COOKIES) else None
+    return Session(cookies, base) if all(n in cookies for n in SESSION_COOKIES) else None
 
 
-def save_session(path: Path, cookies: dict[str, str]) -> None:
+def save_session(path: Path, session: Session) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cookies), encoding="utf-8")
+    path.write_text(json.dumps({"cookies": session.cookies, "base": session.base}), encoding="utf-8")
     path.chmod(0o600)

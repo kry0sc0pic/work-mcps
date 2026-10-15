@@ -117,12 +117,13 @@ under `@mcp.tool()` on every tool.
   `company_id`. `POST /companies/fetch {ids}` (with `x-csrf-token`) returns the companies, but their `jobs`
   lists omit some jobs the search found, so those come from the job page.
 
-## TAL.net quirks (verified live with replayed session cookies; the scripted login is tested against a mock only)
+## TAL.net quirks (verified live, including the scripted login)
 - Legacy server-rendered HTML, no JSON API. `/candidate/application` (table: title, status label, link ending
   `/application/<id>`), `/candidate/application/<id>` (`app-status` heading, `app-status-desc` message),
   `.../correspondence` (table `history-of-comms`: dd/mm/yyyy, subject, `.../email/<id>`), `.../email/<id>`,
-  `.../opportunity` (eform, read as plain text). The short `/candidate/...` URLs work with the cookies; the
-  browser's `/vx/lang-en-GB/mobile-0/brand-2/user-<n>/xf-<token>/candidate` form is not needed.
+  `.../opportunity` (eform, read as plain text). After a scripted login only URLs under the
+  `/vx/lang-en-GB/mobile-0/brand-2/user-<n>/xf-<token>` prefix (where the login redirect lands) are signed in;
+  bare `/candidate/...` ones show the signed-out page. So `auth.Session` keeps that prefix next to the cookies.
 - The list label is "Application Update" for everything, so status = label + the employer's first message
   paragraph. No application date exists. Rejection wording is unseen (`_CLOSED` is a guess).
 - Login: GET `/candidate/login`, form `login_form` (hidden `formtt_uuid`, `__vxXSRF_Token`, `...`; its `action`

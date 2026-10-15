@@ -33,6 +33,7 @@ from mcp_tal.server import (
 
 HOST = "acme.tal.net"
 CRED = Credential(username="me@x.com", password="Pw-Case1")
+PREFIX = "/vx/brand-2/user-1/xf-1"
 SALT = "abc?expires=1"
 NUMBER = 37
 
@@ -87,6 +88,8 @@ class FakeSite:
 
     def authed(self, req: httpx.Request) -> bool:
         jar = req.headers.get("cookie", "")
+        if not req.url.path.startswith(PREFIX):
+            return False  # bare /candidate/... URLs are signed out, as on the real site
         passed = "bypassCaptcha=ok" in jar or not self.check
         return "wcn_session=sess" in jar and passed and not self.expire
 
@@ -128,8 +131,9 @@ class FakeSite:
             self.logins += 1
             self.expire = False
             return httpx.Response(
-                302, headers={"location": "/candidate", "set-cookie": "wcn_session=sess; Path=/"}
+                302, headers={"location": f"{PREFIX}/candidate", "set-cookie": "wcn_session=sess; Path=/"}
             )
+        path = path.removeprefix(PREFIX)
         if not self.authed(req):
             return httpx.Response(200, text=_page("signed out", logged_in=False))
         pages = {

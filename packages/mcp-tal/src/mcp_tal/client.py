@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from mcp_tal.accounts import TalAccount
 from mcp_tal.auth import (
     AuthError,
+    Session,
     browser_headers,
     cookies_for,
     load_cached_session,
@@ -66,6 +67,7 @@ class TalClient:
         self.account = account
         self._cred = cred
         self._session_file = settings.session_path(account.key)
+        self._base = ""  # see auth.Session.base
         self._http = httpx.AsyncClient(
             base_url=f"https://{account.host}",
             timeout=30.0,
@@ -76,8 +78,7 @@ class TalClient:
 
     async def __aenter__(self) -> "TalClient":
         if cached := load_cached_session(self._session_file):
-            for name, value in cached.items():
-                self._http.cookies.set(name, value, domain=self.account.host)
+            self._use(cached)
         else:
             await self._login()
         return self
@@ -85,12 +86,22 @@ class TalClient:
     async def __aexit__(self, *exc: object) -> None:
         await self._http.aclose()
 
+    def _use(self, session: Session) -> None:
+        self._base = session.base
+        for name, value in session.cookies.items():
+            self._http.cookies.set(name, value, domain=self.account.host)
+
+    def _session(self) -> Session:
+        return Session(cookies_for(self._http, self.account.host), self._base)
+
     async def _login(self) -> None:
         self._http.cookies.clear()
-        save_session(self._session_file, await login(self._http, self.account, self._cred))
+        session = await login(self._http, self.account, self._cred)
+        self._base = session.base
+        save_session(self._session_file, session)
 
     async def _get(self, path: str, *, _retry: bool = True) -> str:
-        resp = await self._http.get(path)
+        resp = await self._http.get(self._base + path)
         if not is_logged_in(resp.text):
             resp = await pass_check(self._http, resp) if "altcha-widget" in resp.text else resp
         # An expired session shows the signed-out page (status 200), so check for the user menu.
@@ -125,7 +136,7 @@ class TalClient:
             )
             for a, status in zip(listed, statuses, strict=True)
         ]
-        save_session(self._session_file, cookies_for(self._http, self.account.host))
+        save_session(self._session_file, self._session())
         return apps
 
     async def application(self, application_id: str) -> TalApplicationDetail:
