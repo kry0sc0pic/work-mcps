@@ -224,7 +224,7 @@ data only: a saved login session is reused until the site rejects it, and then t
 | iCIMS | ⏳ Pending |
 | amazon.jobs | ⏳ Pending |
 | Google Careers | ⏳ Pending |
-| IBM Careers | ⏳ Pending |
+| IBM Careers | ❌ Not building |
 | Other company ATS-es | 🔜 Coming soon |
 
 ## Contributing
