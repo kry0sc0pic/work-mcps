@@ -12,6 +12,7 @@ members = [
     "packages/mcp-oracle",
     "packages/mcp-tal",
     "packages/mcp-avature",
+    "packages/mcp-yello",
     "packages/mcp-waas",
     "packages/mcp-workday",
     "packages/work-mcp",

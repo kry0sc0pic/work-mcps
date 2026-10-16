@@ -37,6 +37,8 @@ employer/recruiter tooling). Python 3.12, uv workspace.
 - `packages/mcp-avature`: Avature candidate portals (`<employer>.avature.net`), `avature_*` tools, own `avature.db`.
   Email + password per host; the portal path (`/en_US/careers`) is kept in the account meta. `waf.py` gets the
   AWS WAF token with headless Playwright; everything else is httpx.
+- `packages/mcp-yello`: Yello candidate portals (`<employer>.yello.co`), `yello_*` tools, own `yello.db`.
+  Email + password per host; server-rendered HTML, scraped in `parse.py`; plain httpx, no browser.
 - `tools/capture.py`: platform-agnostic Playwright traffic recorder for reverse-engineering a new
   site (`uv run python tools/capture.py <login-url>`). Output goes to gitignored `.captures/`.
 - `tests/`: one flat directory. `conftest.py` swaps in an in-memory keyring so tests never touch the
@@ -152,6 +154,19 @@ under `@mcp.tool()` on every tool.
   pages have been captured. Rejection wording is unseen (`_CLOSED` is a guess).
 - The Profile page also has "Event information" and "Interview information" tables (no separate API), read by
   `avature_get_schedule` live, uncached. Only their empty state ("You have no ...", class `not-applied`) has been seen.
+
+## Yello quirks (verified live, including the scripted login)
+- Login is a CAS single sign-on on a shared host (`<region>-p-sso.yello.co`): GET `<portal>/login` redirects to
+  `/cas/login?service=<portal>/login`; POST `username`, `password`, hidden `execution` (one-time webflow token),
+  `_eventId=submit`, `geolocation` (empty), to `/cas/login` **with the `?service=` query kept** (the form action
+  is a bare `login`; without the query CAS answers 401 "Authentication attempt has failed"). Success is a redirect chain back through a service ticket to the
+  portal home. A failed login re-renders the form. The portal session cookie is `_session_id` on the portal host.
+- The home page (`/`) is the whole API: server-rendered cards under "My Applications" (`data-id="application"`,
+  hidden `application-id` / `requisition-id`, `yello-label` = job title, `yello-text` = stage), plus
+  "Invitations", "My Schedule" and "My Interviews". No dates exist. The `/graphql` endpoint serves
+  recruiter-style menu config and redirected without a session, so it isn't used.
+- Only "Application Submitted" and the empty schedule states have been seen; rejection wording is a guess
+  (`_CLOSED`). An expired session redirects to the CAS page, so check the page for the "My Applications" heading.
 
 ## Application cache
 `ats_core/cache.py`: one SQLite file per platform (`workday.db`) holding every account's applications

@@ -17,6 +17,8 @@ from mcp_tal.config import TalSettings
 from mcp_waas.config import WaasSettings
 from mcp_workday.accounts import WorkdayAccount
 from mcp_workday.config import WorkdaySettings
+from mcp_yello.accounts import YelloAccount
+from mcp_yello.config import YelloSettings
 
 
 @dataclass(frozen=True)
@@ -262,6 +264,34 @@ class Avature:
         return CredentialStore("avature", AvatureSettings().config_dir)
 
 
+class Yello:
+    """Yello candidate portals: one email + password account per `<employer>.yello.co` host."""
+
+    id = "yello"
+    label = "Yello"
+    server_script = "mcp-yello"
+    uses_password = True
+
+    def owns(self, url: str) -> bool:
+        raw = url.strip()
+        host = (urlparse(raw if "://" in raw else "https://" + raw).hostname or "").lower()
+        return host.endswith(".yello.co")
+
+    def parse(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        acct = YelloAccount.from_url(url)
+        meta = acct.meta(source, company)
+        return AccountRef(key=acct.key, meta=meta, label=f"{meta['company']} ({acct.host})")
+
+    def key_for(self, url: str) -> str:
+        return YelloAccount.from_url(url).key
+
+    def discover(self, url: str, company: str | None = None, source: str = "typed") -> AccountRef:
+        return self.parse(url, company, source)
+
+    def store(self) -> CredentialStore:
+        return CredentialStore("yello", YelloSettings().config_dir)
+
+
 PLATFORMS: dict[str, Platform] = {
-    p.id: p for p in (Workday(), Oracle(), Greenhouse(), Waas(), Tal(), Avature())
+    p.id: p for p in (Workday(), Oracle(), Greenhouse(), Waas(), Tal(), Avature(), Yello())
 }

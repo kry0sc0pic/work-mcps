@@ -438,6 +438,30 @@ def add_tal(
     console.print(f"[green]Saved {ref.label}.[/green]")
 
 
+@app.command("add-yello")
+def add_yello(
+    url: Annotated[
+        str,
+        typer.Argument(
+            help="The employer's candidate portal or its sign-in URL, e.g. https://acme.yello.co/login"
+        ),
+    ],
+    email: Annotated[str | None, typer.Option("--email", help="The email you sign in with.")] = None,
+    company: Annotated[str | None, typer.Option("--company", help="Display name.")] = None,
+) -> None:
+    """Add a Yello employer portal (email + password login; the password is asked for, hidden)."""
+    platform = PLATFORMS["yello"]
+    try:
+        ref = platform.parse(url, company, source="cli")
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+    username = email or typer.prompt(f"Email for {ref.label}")
+    password = read_password("Password (input hidden): ")
+    platform.store().save(ref.key, Credential(username=username, password=password), meta=ref.meta)
+    console.print(f"[green]Saved {ref.label}.[/green]")
+
+
 @app.command("add-avature")
 def add_avature(
     url: Annotated[

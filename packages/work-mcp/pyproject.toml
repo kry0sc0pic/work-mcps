@@ -16,6 +16,7 @@ dependencies = [
     "mcp-tal",
     "mcp-waas",
     "mcp-workday",
+    "mcp-yello",
     "questionary>=2.1.1",
     "rich>=15.0.0",
     "ruamel-yaml>=0.18",
@@ -37,3 +38,4 @@ mcp-avature = { workspace = true }
 mcp-waas = { workspace = true }
 mcp-oracle = { workspace = true }
 mcp-workday = { workspace = true }
+mcp-yello = { workspace = true }

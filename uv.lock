@@ -15,6 +15,7 @@ members = [
     "mcp-tal",
     "mcp-waas",
     "mcp-workday",
+    "mcp-yello",
     "work-mcp",
     "work-mcps",
 ]
@@ -696,6 +697,17 @@ requires-dist = [{ name = "ats-core", editable = "packages/ats-core" }]
 name = "mcp-workday"
 version = "0.1.0"
 source = { editable = "packages/mcp-workday" }
+dependencies = [
+    { name = "ats-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "ats-core", editable = "packages/ats-core" }]
+
+[[package]]
+name = "mcp-yello"
+version = "0.1.0"
+source = { editable = "packages/mcp-yello" }
 dependencies = [
     { name = "ats-core" },
 ]
@@ -1538,6 +1550,7 @@ dependencies = [
     { name = "mcp-tal" },
     { name = "mcp-waas" },
     { name = "mcp-workday" },
+    { name = "mcp-yello" },
     { name = "questionary" },
     { name = "rich" },
     { name = "ruamel-yaml" },
@@ -1553,6 +1566,7 @@ requires-dist = [
     { name = "mcp-tal", editable = "packages/mcp-tal" },
     { name = "mcp-waas", editable = "packages/mcp-waas" },
     { name = "mcp-workday", editable = "packages/mcp-workday" },
+    { name = "mcp-yello", editable = "packages/mcp-yello" },
     { name = "questionary", specifier = ">=2.1.1" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "ruamel-yaml", specifier = ">=0.18" },

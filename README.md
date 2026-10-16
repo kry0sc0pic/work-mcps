@@ -14,7 +14,7 @@ uv run work-mcp setup
 ```
 
 The wizard walks through:
-1. **Platforms:** which ATS platforms to connect (Workday, Oracle Recruiting Cloud, Greenhouse, Work at a Startup, TAL.net, Avature).
+1. **Platforms:** which ATS platforms to connect (Workday, Oracle Recruiting Cloud, Greenhouse, Work at a Startup, TAL.net, Avature, Yello).
 2. **Logins:** import them from a password-manager CSV (Apple Passwords, Chrome, 1Password,
    Bitwarden), type them in one at a time, or skip.
 3. **Registration:** pick which AI clients get the MCP servers (detected ones are pre-ticked; see
@@ -236,6 +236,22 @@ password is asked for, hidden). The portals sit behind an AWS WAF bot check, so 
 
 Only "Qualifications Under Review" has been seen as a status. Environment variables use the `AVATURE_` prefix.
 
+## Yello
+
+`mcp-yello` covers candidate portals on `<employer>.yello.co`. Each portal is its own account with an email and
+password (a CAS single sign-on form). Add one with `uv run work-mcp add-yello https://<employer>.yello.co/login`
+(the password is asked for, hidden).
+
+| Tool | What it does |
+| --- | --- |
+| `yello_get_applications` | Your applications across portals (filters: `company`, `account`, `state`, `status`, `title`; cached 30 minutes). |
+| `yello_get_schedule` | Interview invitations, events and interviews from the portal home page (live). |
+| `yello_get_delta` / `yello_get_status_history` | What changed since the last call, and the statuses seen over time. |
+| `yello_list_accounts`, `yello_set_company`, `yello_delete_credentials` | Account management. |
+
+The portal shows no application date. Only "Application Submitted" has been seen as a status, and only the
+empty schedule. Environment variables use the `YELLO_` prefix.
+
 ## Tools
 
 | Tool | What it does |
@@ -256,13 +272,13 @@ Only "Qualifications Under Review" has been seen as a status. Environment variab
 | Path | Contents |
 |---|---|
 | System keychain, service `work-mcps` | Workday passwords and the AgentMail API key |
-| `~/.config/work-mcps/` (`%APPDATA%\work-mcps` on Windows) | Non-secret account indexes (`workday-accounts.json`, `oracle-accounts.json`, `greenhouse-accounts.json`, `waas-accounts.json`, `tal-accounts.json`, `avature-accounts.json`), `mailbox.json` (AgentMail inbox id), optional `email-templates.json`, `keyring.json` (headless choice) |
-| `~/.cache/work-mcps/<platform>/` for `workday`, `oracle`, `greenhouse`, `waas`, `tal`, `avature` (`%LOCALAPPDATA%\work-mcps\<platform>` on Windows) | `<platform>.db` (SQLite cache of all accounts' applications plus status history), cached login sessions `session-*.json` (mode 600), delta snapshots |
+| `~/.config/work-mcps/` (`%APPDATA%\work-mcps` on Windows) | Non-secret account indexes (`workday-accounts.json`, `oracle-accounts.json`, `greenhouse-accounts.json`, `waas-accounts.json`, `tal-accounts.json`, `avature-accounts.json`, `yello-accounts.json`), `mailbox.json` (AgentMail inbox id), optional `email-templates.json`, `keyring.json` (headless choice) |
+| `~/.cache/work-mcps/<platform>/` for `workday`, `oracle`, `greenhouse`, `waas`, `tal`, `avature`, `yello` (`%LOCALAPPDATA%\work-mcps\<platform>` on Windows) | `<platform>.db` (SQLite cache of all accounts' applications plus status history), cached login sessions `session-*.json` (mode 600), delta snapshots |
 
 The cached sessions are as good as being signed in (Workday and Greenhouse cookies, Oracle's access code),
 so keep the cache folders out of backups and sync folders. Deleting an account removes its session file.
 
-Override with `<PLATFORM>_CONFIG_DIR` and `<PLATFORM>_CACHE_DIR` (`WORKDAY_`, `ORACLE_`, `GREENHOUSE_`, `WAAS_`, `TAL_`, `AVATURE_`); change
+Override with `<PLATFORM>_CONFIG_DIR` and `<PLATFORM>_CACHE_DIR` (`WORKDAY_`, `ORACLE_`, `GREENHOUSE_`, `WAAS_`, `TAL_`, `AVATURE_`, `YELLO_`); change
 the cache lifetime with `<PLATFORM>_CACHE_TTL_MINUTES` (default 30). That lifetime applies to the application
 data only: a saved login session is reused until the site rejects it, and then the server logs in again once.
 
@@ -280,6 +296,7 @@ data only: a saved login session is reused until the site rejects it, and then t
 | Darwinbox | ❌ Not building |
 | TAL.net | ✅ Done: applications, emails received, program details. Rejection wording not yet seen |
 | Avature | ✅ Done: applications and dates. Other status wording not yet seen |
+| Yello | ✅ Done: applications, schedule. Other status wording not yet seen |
 | iCIMS | ⏳ Pending |
 | amazon.jobs | ⏳ Pending |
 | Google Careers | ⏳ Pending |
@@ -310,6 +327,7 @@ check (application status, saved jobs, and so on). Requests help decide what get
 | `mcp-waas` | Work at a Startup (YC) MCP server (done): applications, conversations, job search |
 | `mcp-tal` | TAL.net (Oleeo) employer portals MCP server (done): applications, emails, program details |
 | `mcp-avature` | Avature candidate portals MCP server (done): applications |
+| `mcp-yello` | Yello candidate portals MCP server (done): applications, schedule |
 | `ats-core` | Shared models, credential store, snapshot diffing |
 | `work-mcp` | `work-mcp` CLI: setup wizard, CSV credential import, server registration |
 
