@@ -107,9 +107,34 @@ def test_account_from_url():
     assert (a.host, a.portal) == (HOST, "/fr_CA/jobs")
     assert AvatureAccount.from_url("acme.avature.net").portal == "/en_US/careers"
     assert AvatureAccount.from_url("acme.avature.net").default_company == "Acme"
-    for bad in ("https://example.com/en_US/careers", "https://avature.net.evil.com/x", ""):
+    custom = AvatureAccount.from_url("https://apply.example.com/en_US/careers/Login")
+    assert (custom.host, custom.portal, custom.default_company) == (
+        "apply.example.com",
+        "/en_US/careers",
+        "Example",
+    )
+    for bad in ("https://example.com/", "https://avature.net.evil.com/x", ""):
         with pytest.raises(ValueError):
             AvatureAccount.from_url(bad)
+
+
+def test_parse_applications_by_header():
+    html = (
+        "<table><thead><tr><th>Position</th><th>Application date</th><th>Status</th><th>Withdraw</th></tr>"
+        "</thead>"
+        '<tbody><tr><td><a href="https://apply.example.com/en_US/careers/JobDetail/Analyst-Intern/4242">'
+        "Analyst &amp; Intern</a></td><td>10-15-2026</td><td>Applied and pending review</td>"
+        '<td><a href="/en_US/careers/CancelApplicationCheck?jobId=4242">Withdraw</a></td></tr>'
+        "</tbody></table>"
+    )
+    [a] = parse_applications(html)
+    assert (a.job_id, a.title, a.location, a.status, a.applied_on) == (
+        "4242",
+        "Analyst & Intern",
+        "",
+        "Applied and pending review",
+        date(2026, 10, 15),
+    )
 
 
 def test_parsers():

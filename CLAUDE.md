@@ -145,8 +145,10 @@ under `@mcp.tool()` on every tool.
   `_login` keeps that cookie when it clears the old session. Needs `playwright install chromium`.
 - Login: GET `<portal>/Login`, POST `username`, `password`, `login` to the same URL (no hidden fields); success
   is a 302 to `<portal>/Profile`. A failed login re-renders the form. Signed in = a `.../Logout/` link.
-- Applications are the "Jobs I've applied to" table on `<portal>/Profile`: title (link `JobDetail?jobId=N`),
-  location, status, application date `MM/DD/YYYY`. Whether it paginates is unknown (4 rows seen). No detail
+- Portals can sit on a company's own domain (apply.example.com/en_US/careers), where the WAF may not challenge and the
+  login form also posts an empty `flowStep`. The applications table on `<portal>/Profile` differs per portal: one
+  has title (`JobDetail?jobId=N`), location, status, date `MM/DD/YYYY`; another has Position (`JobDetail/<slug>/<id>`),
+  Application date `MM-DD-YYYY`, Status, Withdraw. `parse.py` follows the header text. Whether it paginates is unknown (4 rows seen). No detail
   pages have been captured. Rejection wording is unseen (`_CLOSED` is a guess).
 
 ## Application cache

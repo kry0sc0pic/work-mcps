@@ -62,7 +62,7 @@ async def login(http: httpx.AsyncClient, solve: SolveWaf, account: AvatureAccoun
         solve,
         "POST",
         url,
-        data={"username": cred.username, "password": cred.password, "login": "Login"},
+        data={"username": cred.username, "password": cred.password, "flowStep": "", "login": "Login"},
         headers={"origin": f"https://{account.host}", "referer": str(page.url)},
     )
     if not is_logged_in(resp.text):

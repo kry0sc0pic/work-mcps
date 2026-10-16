@@ -20,7 +20,9 @@ class AvatureAccount(BaseModel):
 
     @property
     def tenant(self) -> str:
-        return self.host.split(".")[0]
+        parts = self.host.split(".")
+        # Custom domains (apply.example.com) have no tenant label of their own; use the company's domain name.
+        return parts[0] if self.host.endswith(".avature.net") or len(parts) < 2 else parts[-2]
 
     @property
     def default_company(self) -> str:
@@ -32,15 +34,16 @@ class AvatureAccount(BaseModel):
 
     @classmethod
     def from_url(cls, url: str) -> "AvatureAccount":
-        """Any URL on a `<tenant>.avature.net` careers portal, with or without a scheme."""
+        """A careers portal URL, with or without a scheme: `<tenant>.avature.net`, or a company's own domain
+        (apply.example.com) as long as the path looks like an Avature `/en_US/careers` portal."""
         raw = url.strip().strip("<>\"'").replace("\\", "")
         if "://" not in raw:
             raw = "https://" + raw.lstrip("/")
         parts = urlparse(raw)
         host = (parts.hostname or "").lower().rstrip(".")
-        if not _HOST.match(host):
-            raise ValueError(f"Not an Avature portal URL (expected <employer>.avature.net): {url!r}")
         m = _PORTAL.match(parts.path)
+        if not host or not (_HOST.match(host) or m):
+            raise ValueError(f"Not an Avature portal URL (<employer>.avature.net or /en_US/careers): {url!r}")
         return cls(host=host, portal=f"/{m.group(1)}/{m.group(2)}" if m else DEFAULT_PORTAL)
 
     @classmethod
