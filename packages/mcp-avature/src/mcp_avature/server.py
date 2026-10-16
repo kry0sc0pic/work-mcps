@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import date, timedelta
 from typing import Literal
@@ -24,6 +25,9 @@ from mcp_avature.auth import AuthError
 from mcp_avature.client import AvatureClient
 from mcp_avature.config import AvatureSettings
 from mcp_avature.waf import WafError
+
+# httpx logs full request URLs at INFO, which would put list-feed signatures in the log.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 mcp = MCPServer("avature")
 

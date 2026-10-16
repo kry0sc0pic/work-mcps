@@ -1,3 +1,4 @@
+import json
 from datetime import date
 from urllib.parse import parse_qs
 
@@ -9,7 +10,16 @@ from mcp_avature.accounts import AvatureAccount
 from mcp_avature.auth import AuthError, load_cached_session
 from mcp_avature.client import AvatureClient
 from mcp_avature.config import AvatureSettings
-from mcp_avature.parse import is_logged_in, is_login_page, parse_applications, parse_date, parse_schedule
+from mcp_avature.parse import (
+    is_logged_in,
+    is_login_page,
+    list_query,
+    parse_applications,
+    parse_date,
+    parse_list_rows,
+    parse_list_widget,
+    parse_schedule,
+)
 from mcp_avature.server import (
     avature_delete_credentials,
     avature_get_applications,
@@ -235,3 +245,106 @@ async def test_tools_end_to_end(settings, monkeypatch):
         await avature_get_applications(company="nobody")
     assert await avature_delete_credentials(HOST)
     assert ApplicationCache(settings.db_path).load([HOST]) == []
+
+
+COLUMNS = [
+    {"code": "CORE_name_3", "label": "Linked folder"},
+    {"code": "t", "label": "Job - External Title"},
+    {"code": "st", "label": "Application Status"},
+    {"code": "sub", "label": "Application Submitted Date"},
+]
+
+
+def feed_row(folder: int, title: str, status: str, when: str) -> dict:
+    def field(value: str) -> dict:
+        return {"stringValue": value}
+
+    return {
+        "id": 1,
+        "fields": {
+            "CORE_name_3": field("internal"),
+            "t": field(title),
+            "st": field(status),
+            "sub": field(when),
+        },
+        "dynamicValues": {"linkedFolderId": folder},
+    }
+
+
+def widget_page(widget_id: str, uuid: str) -> str:
+    props = json.dumps(
+        {"widgetId": widget_id, "uuid": uuid, "listType": "PersonList", "recordsPerPage": 1, "qtvc": "sig",
+         "links": {"viewApplication": {"targetPageUuid": "p"}}}
+    )  # fmt: skip
+    return (
+        '<meta name="avature.portal.id" content="44"/><a href="/en_US/careers/Logout/">Logout</a>'
+        f"<list data-props='{props}'></list>"
+    )
+
+
+def test_list_widget_parsing():
+    widget = parse_list_widget(widget_page("appliedList", "u-1"))
+    assert widget and widget.portal_id == "44"
+    q = list_query(widget, 3)
+    assert (q["uuid"], q["offset"], q["qtvc"], q["recordsPerPage"]) == ("u-1", "3", "sig", "1")
+    assert json.loads(q["links"])["viewApplication"]["targetPageUuid"] == "p"
+    assert parse_list_widget("<p>nothing</p>") is None
+    data = {
+        "columns": COLUMNS,
+        "results": [feed_row(7, "Analyst", "Submitted", "25-Sep-2026"), {"fields": {}}],
+    }
+    [a] = parse_list_rows(data, closed=True)
+    assert (a.job_id, a.title, a.status, a.applied_on, a.closed) == (
+        "7",
+        "Analyst",
+        "Submitted",
+        date(2026, 9, 25),
+        True,
+    )
+
+
+async def test_applications_from_list_feed(settings):
+    rows = {
+        "u-open": [
+            feed_row(1, "Analyst", "Submitted", "25-Sep-2026"),
+            feed_row(2, "Engineer", "Submitted", "26-Sep-2026"),
+        ],
+        "u-shut": [feed_row(3, "Designer", "Closed", "24-Sep-2026")],
+    }
+    paths: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        paths.append(req.url.path)
+        if req.url.path == "/44/_portalList":
+            uuid = req.url.params["uuid"]
+            start = int(req.url.params["offset"])
+            part = rows[uuid][start : start + 1]  # the feed pages one row at a time
+            return httpx.Response(
+                200, json={"columns": COLUMNS, "results": part, "total": str(len(rows[uuid]))}
+            )
+        if req.url.path.endswith("/ProfileJobApplications"):
+            return httpx.Response(200, text=widget_page("appliedList", "u-open"))
+        if req.url.path.endswith("/ProfileClosedJobApplications"):
+            return httpx.Response(200, text=widget_page("appliedListInactive", "u-shut"))
+        if req.url.path.endswith("/Profile"):
+            return httpx.Response(404, text='<a href="/en_US/careers/Logout/">Logout</a>')
+        return httpx.Response(200, text=LOGIN_PAGE)
+
+    def waf_ok(req: httpx.Request) -> httpx.Response:
+        return handler(req)
+
+    async with AvatureClient(
+        AvatureAccount(host=HOST),
+        CRED,
+        settings,
+        transport=httpx.MockTransport(waf_ok),
+        token_provider=Tokens(),
+    ) as c:
+        c._http.cookies.set("sess", "ok", domain=HOST)
+        apps = await c.applications()
+    assert [(a.id, a.state, a.applied_on) for a in apps] == [
+        ("1", "active", date(2026, 9, 25)),
+        ("2", "active", date(2026, 9, 26)),
+        ("3", "inactive", date(2026, 9, 24)),
+    ]
+    assert paths.count("/44/_portalList") == 3

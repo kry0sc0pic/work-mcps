@@ -1,5 +1,6 @@
 """HTML scraping for Avature's candidate portal (server-rendered)."""
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -13,6 +14,7 @@ class ListedApplication:
     location: str
     status: str
     applied_on: date | None
+    closed: bool = False
 
 
 def is_logged_in(html: str) -> bool:
@@ -25,7 +27,7 @@ def is_login_page(html: str) -> bool:
 
 
 def parse_date(text: str) -> date | None:
-    for fmt in ("%m/%d/%Y", "%m-%d-%Y"):
+    for fmt in ("%m/%d/%Y", "%m-%d-%Y", "%d-%b-%Y"):
         try:
             return datetime.strptime(text.strip(), fmt).date()
         except ValueError:
@@ -97,3 +99,98 @@ def parse_schedule(html: str) -> tuple[list[dict[str, str]], list[dict[str, str]
             if len(cells) >= 2 and "not-applied" not in row:
                 target.append({h: c for h, c in zip(headers, cells, strict=False) if h and c})
     return events, interviews
+
+
+@dataclass
+class ListWidget:
+    """A server-driven list on a portal page: `<list data-props='{...}'>` plus the portal id, which the
+    page's JSON feed lives under (`/<portal id>/_portalList`)."""
+
+    portal_id: str
+    props: dict[str, object]
+
+
+def parse_list_widget(html: str) -> ListWidget | None:
+    tag = re.search(r"<list\s+data-props='(.*?)'\s*>", html, re.S)
+    portal = re.search(r'name="avature\.portal\.id"\s+content="(\d+)"', html)
+    if not tag or not portal:
+        return None
+    try:
+        props = json.loads(unescape(tag.group(1)))
+    except ValueError:
+        return None
+    return ListWidget(portal.group(1), props) if isinstance(props, dict) and props.get("uuid") else None
+
+
+def list_query(widget: ListWidget, offset: int) -> dict[str, str]:
+    """The feed's query string, as the page's script builds it from the widget props."""
+    p = widget.props
+
+    def flag(name: str) -> str:
+        return "true" if p.get(name) else "false"
+
+    query = {
+        "uuid": str(p["uuid"]),
+        "hasToIncludePaginationOptions": flag("hasToIncludePaginationOptions"),
+        "allowListSorting": flag("allowListSorting"),
+        "fetchJobIdInPeopleLists": flag("fetchJobIdInPeopleLists"),
+        "listType": str(p.get("listType", "PersonList")),
+        "offset": str(offset),
+        "filters": json.dumps({"search": ""}, separators=(",", ":")),
+        "sort": "",
+        "sortDirection": "DESC",
+        "recordsPerPage": str(p.get("recordsPerPage", 10)),
+        "token": "",
+        "allowFilteringFromUrlParams": flag("allowFilteringFromUrlParams"),
+        "layout": str(p.get("layout", "custom")),
+        "dynamicValueConfigs": json.dumps(p.get("dynamicValueConfigs") or [], separators=(",", ":")),
+        "shouldAddBase64FileFields": flag("shouldAddBase64FileFields"),
+        "searchMode": str(p.get("searchMode", "ResultsAndCount")),
+        "qtvc": str(p.get("qtvc", "")),
+        "pageUrlParams": "{}",
+    }
+    if p.get("links"):
+        query["links"] = json.dumps(p["links"], separators=(",", ":"))
+    return query
+
+
+def parse_list_rows(data: dict[str, object], *, closed: bool) -> list[ListedApplication]:
+    """Applications from a list feed reply. Fields are keyed by generated codes, so they are found by their
+    column label (title, status, dates); the id is the linked folder, which is unique per application."""
+    columns = data.get("columns")
+    labels = (
+        {str(c.get("code")): str(c.get("label", "")).lower() for c in columns if isinstance(c, dict)}
+        if isinstance(columns, list)
+        else {}
+    )
+
+    def code(*words: str) -> str | None:
+        return next((c for w in words for c, lab in labels.items() if w in lab), None)
+
+    title_c = code("external title", "linked folder")
+    status_c = code("status")
+    date_c = code("submitted date", "created date", "folder date")
+    out: list[ListedApplication] = []
+    results = data.get("results")
+    for row in results if isinstance(results, list) else []:
+        fields = row.get("fields", {})
+        dyn = row.get("dynamicValues") or {}
+        folder = dyn.get("linkedFolderId")
+
+        def text(c: str | None, fields: dict[str, dict[str, str]] = fields) -> str:
+            return str(fields.get(c, {}).get("stringValue", "")).strip() if c else ""
+
+        title = text(title_c) or text("CORE_name_3")
+        if folder is None or not title:
+            continue
+        out.append(
+            ListedApplication(
+                job_id=str(folder),
+                title=title,
+                location="",
+                status=text(status_c),
+                applied_on=parse_date(text(date_c)),
+                closed=closed,
+            )
+        )
+    return out

@@ -152,6 +152,12 @@ under `@mcp.tool()` on every tool.
   has title (`JobDetail?jobId=N`), location, status, date `MM/DD/YYYY`; another has Position (`JobDetail/<slug>/<id>`),
   Application date `MM-DD-YYYY`, Status, Withdraw. `parse.py` follows the header text. Whether it paginates is unknown (4 rows seen). No detail
   pages have been captured. Rejection wording is unseen (`_CLOSED` is a guess).
+- A third layout draws applications with a **list widget**, not a table: `/ProfileJobApplications` (open) and
+  `/ProfileClosedJobApplications` (closed) each hold `<list data-props='{...}'>` (uuid, qtvc signature, links...)
+  and `<meta name="avature.portal.id">`. The rows come from GET `/<portal id>/_portalList` with those props as the
+  query (`client._feed`, `parse.list_query`), paged by `offset` up to `total`. Fields have generated codes, so
+  they are found by column label; the id is `dynamicValues.linkedFolderId`; dates look like `25-Sep-2026`.
+  The closed list's status is "Closed". `/Profile` is tried first and the widget pages are the fallback.
 - The Profile page also has "Event information" and "Interview information" tables (no separate API), read by
   `avature_get_schedule` live, uncached. Only their empty state ("You have no ...", class `not-applied`) has been seen.
 

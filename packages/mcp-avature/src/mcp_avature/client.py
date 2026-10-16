@@ -18,7 +18,16 @@ from mcp_avature.auth import (
     send,
 )
 from mcp_avature.config import AvatureSettings
-from mcp_avature.parse import is_logged_in, parse_applications, parse_schedule
+from mcp_avature.parse import (
+    ListedApplication,
+    ListWidget,
+    is_logged_in,
+    list_query,
+    parse_applications,
+    parse_list_rows,
+    parse_list_widget,
+    parse_schedule,
+)
 from mcp_avature.waf import TokenProvider, browser_pass
 
 # Only "Qualifications Under Review" has been seen, so which words mean the process has ended is a guess.
@@ -98,8 +107,41 @@ class AvatureClient:
         self._save()
         return result
 
+    async def _feed(self, widget: ListWidget, *, closed: bool) -> list[ListedApplication]:
+        """Every row of a list widget, paged through its JSON feed (a plain GET, like the page's script)."""
+        rows: list[ListedApplication] = []
+        offset = 0
+        while True:
+            resp = await send(
+                self._http,
+                self._solve_waf,
+                "GET",
+                f"/{widget.portal_id}/_portalList",
+                params=list_query(widget, offset),
+                headers={"accept": "application/json, text/plain, */*"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            batch = data.get("results") or []
+            rows += parse_list_rows(data, closed=closed)
+            offset += len(batch)
+            if not batch or offset >= int(data.get("total") or 0):
+                return rows
+
+    async def _list_applications(self) -> list[ListedApplication]:
+        """Portals that draw applications with a list widget instead of a table (open and closed pages)."""
+        rows: list[ListedApplication] = []
+        for page, closed in (("/ProfileJobApplications", False), ("/ProfileClosedJobApplications", True)):
+            if widget := parse_list_widget(await self._get(page)):
+                rows += await self._feed(widget, closed=closed)
+        return rows
+
     async def applications(self) -> list[Application]:
-        listed = parse_applications(await self._get("/Profile"))
+        try:
+            listed = parse_applications(await self._get("/Profile"))
+        except httpx.HTTPStatusError:  # a portal without a Profile page
+            listed = []
+        listed = listed or await self._list_applications()
         self._save()
         return [
             Application(
@@ -108,7 +150,7 @@ class AvatureClient:
                 job_id=a.job_id,
                 title=a.title,
                 status=a.status,
-                state="inactive" if _CLOSED.search(a.status) else "active",
+                state="inactive" if a.closed or _CLOSED.search(a.status) else "active",
                 applied_on=a.applied_on,
             )
             for a in listed
