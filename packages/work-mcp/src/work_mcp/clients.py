@@ -106,7 +106,7 @@ def _install_json(path: Path, spec: ServerSpec) -> Outcome:
 def _keyring_env() -> dict[str, str]:
     """Hermes passes MCP servers only the env it is configured with, so a Linux keyring on a
     session bus (typical on headless boxes) is invisible unless the bus address is set explicitly."""
-    if not sys.platform.startswith("linux"):
+    if sys.platform != "linux":  # a comparison (not startswith) lets pyright skip this on Windows
         return {}
     addr = os.environ.get("DBUS_SESSION_BUS_ADDRESS")
     if not addr and (bus := Path(f"/run/user/{os.getuid()}/bus")).exists():
