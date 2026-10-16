@@ -9,7 +9,7 @@ from mcp_avature.accounts import AvatureAccount
 from mcp_avature.auth import AuthError, load_cached_session
 from mcp_avature.client import AvatureClient
 from mcp_avature.config import AvatureSettings
-from mcp_avature.parse import is_logged_in, is_login_page, parse_applications, parse_date
+from mcp_avature.parse import is_logged_in, is_login_page, parse_applications, parse_date, parse_schedule
 from mcp_avature.server import (
     avature_delete_credentials,
     avature_get_applications,
@@ -135,6 +135,23 @@ def test_parse_applications_by_header():
         "Applied and pending review",
         date(2026, 10, 15),
     )
+
+
+def test_parse_schedule():
+    empty = (
+        "<table><tr><th>Event</th><th>Location</th><th>Date</th><th>Status</th></tr>"
+        '<tr><td class="not-applied" colspan="3">You have no upcoming events.</td></tr></table>'
+        "<table><tr><th>Position</th><th>Interview date</th><th>Interview time</th><th>Action</th></tr>"
+        '<tr><td class="not-applied" colspan="3">You have no scheduled interviews.</td></tr></table>'
+    )
+    assert parse_schedule(empty) == ([], [])
+    full = empty.replace(
+        '<tr><td class="not-applied" colspan="3">You have no scheduled interviews.</td></tr>',
+        "<tr><td>Analyst</td><td>11-02-2026</td><td>10:00 AM</td><td></td></tr>",
+    )
+    assert parse_schedule(full)[1] == [
+        {"Position": "Analyst", "Interview date": "11-02-2026", "Interview time": "10:00 AM"}
+    ]
 
 
 def test_parsers():

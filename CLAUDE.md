@@ -150,6 +150,8 @@ under `@mcp.tool()` on every tool.
   has title (`JobDetail?jobId=N`), location, status, date `MM/DD/YYYY`; another has Position (`JobDetail/<slug>/<id>`),
   Application date `MM-DD-YYYY`, Status, Withdraw. `parse.py` follows the header text. Whether it paginates is unknown (4 rows seen). No detail
   pages have been captured. Rejection wording is unseen (`_CLOSED` is a guess).
+- The Profile page also has "Event information" and "Interview information" tables (no separate API), read by
+  `avature_get_schedule` live, uncached. Only their empty state ("You have no ...", class `not-applied`) has been seen.
 
 ## Application cache
 `ats_core/cache.py`: one SQLite file per platform (`workday.db`) holding every account's applications

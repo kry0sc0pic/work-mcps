@@ -228,6 +228,47 @@ async def avature_get_applications(
     return ApplicationsResult(applications=apps, accounts=statuses)
 
 
+class AccountSchedule(BaseModel):
+    account: str
+    company: str
+    events: list[dict[str, str]] = []
+    interviews: list[dict[str, str]] = []
+    error: str | None = None
+
+
+async def _schedule_one(settings: AvatureSettings, key: str, company: str) -> AccountSchedule:
+    try:
+        acct, cred = load_account(settings, key)
+        async with AvatureClient(acct, cred, settings) as client:
+            events, interviews = await client.schedule()
+    except Exception as e:  # one broken account shouldn't hide the others
+        return AccountSchedule(account=key, company=company, error=str(e))
+    return AccountSchedule(account=key, company=company, events=events, interviews=interviews)
+
+
+@mcp.tool()
+@user_errors
+async def avature_get_schedule(
+    company: str | None = None, account: str | None = None
+) -> list[AccountSchedule]:
+    """Upcoming interviews and registered events from each employer's portal profile page.
+
+    Always fetched live (logs in with the saved credentials); it isn't cached. Each row is keyed by the
+    portal's own column names (e.g. Position, Interview date, Interview time / Event, Location, Date, Status).
+    Empty lists mean the portal says there is nothing scheduled. Poll this to notice a new interview.
+
+    Args:
+        company: employer name or part of it. Omit to check every registered employer.
+        account: exact host. Overrides `company`.
+    """
+    settings = AvatureSettings()
+    keys = select_accounts(settings, account, company)
+    index = credential_store(settings).list()
+    return list(
+        await asyncio.gather(*(_schedule_one(settings, k, index.get(k, {}).get("company", "")) for k in keys))
+    )
+
+
 @mcp.tool()
 @user_errors
 async def avature_get_delta(

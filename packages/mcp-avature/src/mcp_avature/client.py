@@ -18,7 +18,7 @@ from mcp_avature.auth import (
     send,
 )
 from mcp_avature.config import AvatureSettings
-from mcp_avature.parse import is_logged_in, parse_applications
+from mcp_avature.parse import is_logged_in, parse_applications, parse_schedule
 from mcp_avature.waf import TokenProvider, browser_pass
 
 # Only "Qualifications Under Review" has been seen, so which words mean the process has ended is a guess.
@@ -91,6 +91,12 @@ class AvatureClient:
             return await self._get(path, _retry=False)
         resp.raise_for_status()
         return resp.text
+
+    async def schedule(self) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+        """(registered events, scheduled interviews) from the profile page."""
+        result = parse_schedule(await self._get("/Profile"))
+        self._save()
+        return result
 
     async def applications(self) -> list[Application]:
         listed = parse_applications(await self._get("/Profile"))
